@@ -13,7 +13,91 @@ interface ChatMessage {
   agentSteps?: AgentStep[];
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/circuit-ai-chat`;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const CHAT_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/circuit-ai-chat` : null;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+const SYSTEM_PROMPT = `You are CircuitForge AI Agent — an autonomous embedded systems assistant inside a visual circuit simulator.
+You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions.
+WORKFLOW: 1. Add components using addComponent 2. Connect pins using connectPins 3. Generate Arduino code using generateArduinoCode 4. Start simulation using runSimulation
+IMPORTANT: Always add components before connecting them. Space components apart (150px+). Use correct pin IDs.
+Arduino Uno pins: d0-d13, a0-a5, 5v, 3v3, gnd1, gnd2, vin. LED: anode, cathode. Resistor: terminal1, terminal2.
+Available components: arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, lcd-16x2, oled-display, 7-segment, led-matrix, keypad, rtc-module, sd-card, motor-driver`;
+
+const GEMINI_TOOLS = [
+  {
+    functionDeclarations: [
+      { name: "addComponent", description: "Add an electronic component to the circuit canvas", parameters: { type: "object", properties: { type: { type: "string", description: "Component type ID" }, x: { type: "number" }, y: { type: "number" } }, required: ["type"] } },
+      { name: "removeComponent", description: "Remove a component by ID", parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+      { name: "connectPins", description: "Wire two pins", parameters: { type: "object", properties: { fromComponent: { type: "string" }, fromPin: { type: "string" }, toComponent: { type: "string" }, toPin: { type: "string" } }, required: ["fromComponent", "fromPin", "toComponent", "toPin"] } },
+      { name: "generateArduinoCode", description: "Set Arduino code", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
+      { name: "runSimulation", description: "Start simulation", parameters: { type: "object", properties: {} } },
+      { name: "fixNetlistErrors", description: "Analyze and fix netlist errors", parameters: { type: "object", properties: {} } },
+    ],
+  },
+];
+
+async function callGeminiDirect(messages: Array<{role: string; content: string}>, useTools: boolean) {
+  if (!GEMINI_API_KEY) throw new Error("No API key configured. Add VITE_GEMINI_API_KEY to your .env file for local development.");
+  
+  const geminiMessages = [
+    { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent ready to help." }] },
+    ...messages.map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    })),
+  ];
+
+  const body: Record<string, unknown> = {
+    contents: geminiMessages,
+    generationConfig: { temperature: 0.7 },
+  };
+  if (useTools) body.tools = GEMINI_TOOLS;
+
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Gemini API error: ${resp.status} ${errText.slice(0, 200)}`);
+  }
+
+  const data = await resp.json();
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const toolCalls = parts.filter((p: any) => p.functionCall);
+  const textParts = parts.filter((p: any) => p.text);
+
+  if (toolCalls.length > 0) {
+    return {
+      choices: [{
+        message: {
+          role: "assistant",
+          content: textParts.map((p: any) => p.text).join("") || null,
+          tool_calls: toolCalls.map((p: any, i: number) => ({
+            id: `call_${i}`,
+            type: "function",
+            function: {
+              name: p.functionCall.name,
+              arguments: JSON.stringify(p.functionCall.args || {}),
+            },
+          })),
+        },
+      }],
+    };
+  }
+  return {
+    choices: [{
+      message: {
+        role: "assistant",
+        content: textParts.map((p: any) => p.text).join(""),
+      },
+    }],
+  };
+}
 
 const QUICK_PROMPTS = [
   { icon: '💡', text: 'Build an LED blink circuit with Arduino' },
@@ -98,88 +182,95 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
     const allMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
 
     try {
-      const resp = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ messages: allMessages, useTools: agentMode }),
-      });
+      let data: any;
 
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(errData.error || `HTTP ${resp.status}`);
-      }
+      if (CHAT_URL) {
+        // Use edge function (Lovable Cloud / self-hosted Supabase)
+        const resp = await fetch(CHAT_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ messages: allMessages, useTools: agentMode }),
+        });
 
-      if (agentMode) {
-        // Non-streaming tool-call response
-        const data = await resp.json();
-        const choice = data.choices?.[0];
-        const message = choice?.message;
-
-        if (message?.tool_calls?.length > 0) {
-          const steps = await executeToolCalls(message.tool_calls);
-
-          // Update last assistant message with final content
-          const summary = message.content || steps.map(s => s.result).filter(Boolean).join('\n');
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last?.role === 'assistant') {
-              return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: summary, agentSteps: steps } : m);
-            }
-            return [...prev, { role: 'assistant', content: summary, agentSteps: steps }];
-          });
-        } else if (message?.content) {
-          setMessages(prev => [...prev, { role: 'assistant', content: message.content }]);
-          // Check for legacy code blocks
-          const codeMatch = message.content.match(/```arduino\s*([\s\S]*?)```/);
-          if (codeMatch) setCode(codeMatch[1].trim());
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({ error: 'Request failed' }));
+          throw new Error(errData.error || `HTTP ${resp.status}`);
         }
-      } else {
-        // Streaming mode (legacy)
-        const reader = resp.body!.getReader();
-        const decoder = new TextDecoder();
-        let textBuffer = '';
-        let assistantSoFar = '';
-        let streamDone = false;
 
-        while (!streamDone) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          textBuffer += decoder.decode(value, { stream: true });
+        if (agentMode) {
+          data = await resp.json();
+        } else {
+          // Streaming mode
+          const reader = resp.body!.getReader();
+          const decoder = new TextDecoder();
+          let textBuffer = '';
+          let assistantSoFar = '';
+          let streamDone = false;
 
-          let newlineIndex: number;
-          while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
-            let line = textBuffer.slice(0, newlineIndex);
-            textBuffer = textBuffer.slice(newlineIndex + 1);
-            if (line.endsWith('\r')) line = line.slice(0, -1);
-            if (line.startsWith(':') || line.trim() === '') continue;
-            if (!line.startsWith('data: ')) continue;
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === '[DONE]') { streamDone = true; break; }
+          while (!streamDone) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            textBuffer += decoder.decode(value, { stream: true });
 
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-              if (content) {
-                assistantSoFar += content;
-                setMessages(prev => {
-                  const last = prev[prev.length - 1];
-                  if (last?.role === 'assistant') {
-                    return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
-                  }
-                  return [...prev, { role: 'assistant', content: assistantSoFar }];
-                });
+            let newlineIndex: number;
+            while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
+              let line = textBuffer.slice(0, newlineIndex);
+              textBuffer = textBuffer.slice(newlineIndex + 1);
+              if (line.endsWith('\r')) line = line.slice(0, -1);
+              if (line.startsWith(':') || line.trim() === '') continue;
+              if (!line.startsWith('data: ')) continue;
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === '[DONE]') { streamDone = true; break; }
+
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+                if (content) {
+                  assistantSoFar += content;
+                  setMessages(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last?.role === 'assistant') {
+                      return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
+                    }
+                    return [...prev, { role: 'assistant', content: assistantSoFar }];
+                  });
+                }
+              } catch {
+                textBuffer = line + '\n' + textBuffer;
+                break;
               }
-            } catch {
-              textBuffer = line + '\n' + textBuffer;
-              break;
             }
           }
-        }
 
-        const codeMatch = assistantSoFar.match(/```arduino\s*([\s\S]*?)```/);
+          const codeMatch = assistantSoFar.match(/```arduino\s*([\s\S]*?)```/);
+          if (codeMatch) setCode(codeMatch[1].trim());
+          return; // streaming handled, exit early
+        }
+      } else {
+        // Direct Gemini API call (local development without Supabase)
+        data = await callGeminiDirect(allMessages, agentMode);
+      }
+
+      // Process tool-call response (both paths produce same format)
+      const choice = data.choices?.[0];
+      const message = choice?.message;
+
+      if (message?.tool_calls?.length > 0) {
+        const steps = await executeToolCalls(message.tool_calls);
+        const summary = message.content || steps.map(s => s.result).filter(Boolean).join('\n');
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant') {
+            return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: summary, agentSteps: steps } : m);
+          }
+          return [...prev, { role: 'assistant', content: summary, agentSteps: steps }];
+        });
+      } else if (message?.content) {
+        setMessages(prev => [...prev, { role: 'assistant', content: message.content }]);
+        const codeMatch = message.content.match(/```arduino\s*([\s\S]*?)```/);
         if (codeMatch) setCode(codeMatch[1].trim());
       }
     } catch (e: any) {
