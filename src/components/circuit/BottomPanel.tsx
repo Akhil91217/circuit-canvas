@@ -1,6 +1,6 @@
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback } from 'react';
 import { Play, Pause, Square, RotateCcw, Code2, Terminal } from 'lucide-react';
-import CodeEditor from './CodeEditor';
+import MultiFileEditor from './MultiFileEditor';
 import SerialMonitor from './SerialMonitor';
 import SimulationControls from './SimulationControls';
 import { useSimulationStore } from '@/store/simulationStore';
@@ -27,6 +27,13 @@ export default function BottomPanel() {
           setPaused(state.paused);
         },
         onLineChange: () => {},
+        onBusMessage: (msg) => {
+          // Log bus messages to serial for visibility
+          addSerialMessage({
+            timestamp: msg.timestamp,
+            text: `[${msg.bus}] ${msg.direction}: [${msg.data.join(', ')}]\n`,
+          });
+        },
       });
     }
     return runtimeRef.current;
@@ -43,11 +50,7 @@ export default function BottomPanel() {
 
   const handlePause = useCallback(() => {
     const rt = getRuntime();
-    if (isPaused) {
-      rt.resume();
-    } else {
-      rt.pause();
-    }
+    if (isPaused) rt.resume(); else rt.pause();
   }, [isPaused, getRuntime]);
 
   const handleStop = useCallback(() => {
@@ -64,7 +67,6 @@ export default function BottomPanel() {
     resetPinStates();
   }, [getRuntime, clearSerial, clearErrors, resetPinStates]);
 
-  // Update speed on runtime when it changes
   const prevSpeed = useRef(speed);
   if (prevSpeed.current !== speed && runtimeRef.current) {
     runtimeRef.current.setSpeed(speed);
@@ -73,82 +75,48 @@ export default function BottomPanel() {
 
   return (
     <div className="flex flex-col border-t border-border bg-[#0d1117]" style={{ height: 280 }}>
-      {/* Controls bar */}
       <div className="h-9 flex items-center px-3 gap-1 border-b border-border/50 bg-[#161b22] shrink-0">
-        {/* Run / Pause / Stop / Reset buttons */}
-        <button
-          onClick={handleRun}
-          disabled={isRunning && !isPaused}
-          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-success/15 text-success hover:bg-success/25 disabled:opacity-30 transition-colors"
-        >
-          <Play className="w-3 h-3" />
-          Run
+        <button onClick={handleRun} disabled={isRunning && !isPaused}
+          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-success/15 text-success hover:bg-success/25 disabled:opacity-30 transition-colors">
+          <Play className="w-3 h-3" /> Run
         </button>
-        <button
-          onClick={handlePause}
-          disabled={!isRunning}
-          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-warning/15 text-warning hover:bg-warning/25 disabled:opacity-30 transition-colors"
-        >
-          <Pause className="w-3 h-3" />
-          {isPaused ? 'Resume' : 'Pause'}
+        <button onClick={handlePause} disabled={!isRunning}
+          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-warning/15 text-warning hover:bg-warning/25 disabled:opacity-30 transition-colors">
+          <Pause className="w-3 h-3" /> {isPaused ? 'Resume' : 'Pause'}
         </button>
-        <button
-          onClick={handleStop}
-          disabled={!isRunning}
-          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-destructive/15 text-destructive hover:bg-destructive/25 disabled:opacity-30 transition-colors"
-        >
-          <Square className="w-3 h-3" />
-          Stop
+        <button onClick={handleStop} disabled={!isRunning}
+          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-destructive/15 text-destructive hover:bg-destructive/25 disabled:opacity-30 transition-colors">
+          <Square className="w-3 h-3" /> Stop
         </button>
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <RotateCcw className="w-3 h-3" />
-          Reset
+        <button onClick={handleReset}
+          className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+          <RotateCcw className="w-3 h-3" /> Reset
         </button>
 
         <div className="w-px h-5 bg-border/50 mx-2" />
 
-        {/* Tabs */}
-        <button
-          onClick={() => setActiveBottomTab('code')}
+        <button onClick={() => setActiveBottomTab('code')}
           className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-            activeBottomTab === 'code'
-              ? 'bg-accent/15 text-accent'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Code2 className="w-3 h-3" />
-          Code
+            activeBottomTab === 'code' ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground'
+          }`}>
+          <Code2 className="w-3 h-3" /> Code
         </button>
-        <button
-          onClick={() => setActiveBottomTab('serial')}
+        <button onClick={() => setActiveBottomTab('serial')}
           className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-            activeBottomTab === 'serial'
-              ? 'bg-accent/15 text-accent'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Terminal className="w-3 h-3" />
-          Serial
+            activeBottomTab === 'serial' ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground'
+          }`}>
+          <Terminal className="w-3 h-3" /> Serial
         </button>
 
         <div className="flex-1" />
-
         <SimulationControls />
       </div>
 
-      {/* Editor / Serial content */}
       <div className="flex-1 overflow-hidden flex">
         {activeBottomTab === 'code' ? (
-          <div className="flex-1">
-            <CodeEditor />
-          </div>
+          <div className="flex-1"><MultiFileEditor /></div>
         ) : (
-          <div className="flex-1">
-            <SerialMonitor />
-          </div>
+          <div className="flex-1"><SerialMonitor /></div>
         )}
       </div>
     </div>
