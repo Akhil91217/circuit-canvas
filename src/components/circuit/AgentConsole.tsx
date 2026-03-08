@@ -32,7 +32,11 @@ export default function AgentConsole({ steps }: AgentConsoleProps) {
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-mono font-semibold text-foreground">{step.tool}</span>
                 <span className="text-[9px] text-muted-foreground font-mono truncate">
-                  ({Object.entries(step.args).map(([k, v]) => `${k}: ${typeof v === 'string' && v.length > 30 ? v.slice(0, 30) + '…' : v}`).join(', ')})
+                  ({Object.entries(
+                    (step.args.properties && typeof step.args.properties === 'object' && !Array.isArray(step.args.properties))
+                      ? (step.args.properties as Record<string, unknown>)
+                      : step.args
+                  ).map(([k, v]) => `${k}: ${typeof v === 'string' && v.length > 30 ? v.slice(0, 30) + '…' : v}`).join(', ')})
                 </span>
               </div>
               {step.result && (
