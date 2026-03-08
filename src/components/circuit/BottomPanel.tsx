@@ -1,8 +1,11 @@
 import { useRef, useCallback } from 'react';
-import { Play, Pause, Square, RotateCcw, Code2, Terminal } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Code2, Terminal, Activity as WaveIcon, Eye } from 'lucide-react';
 import MultiFileEditor from './MultiFileEditor';
 import SerialMonitor from './SerialMonitor';
+import WaveformViewer from './WaveformViewer';
+import VariableInspector from './VariableInspector';
 import SimulationControls from './SimulationControls';
+import DebugControls from './DebugControls';
 import { useSimulationStore } from '@/store/simulationStore';
 import { ArduinoRuntime } from '@/engine/ArduinoRuntime';
 
@@ -11,7 +14,9 @@ export default function BottomPanel() {
     code, isRunning, isPaused, speed,
     setRunning, setPaused, addSerialMessage, clearSerial,
     clearErrors, addError, setPinState, resetPinStates,
-    activeBottomTab, setActiveBottomTab, setSpeed,
+    activeBottomTab, setActiveBottomTab,
+    setRuntimeVariables, addWaveformSample, clearWaveform,
+    setCurrentExecutionLine, debugMode, breakpoints,
   } = useSimulationStore();
 
   const runtimeRef = useRef<ArduinoRuntime | null>(null);
@@ -20,15 +25,33 @@ export default function BottomPanel() {
     if (!runtimeRef.current) {
       runtimeRef.current = new ArduinoRuntime({
         onSerialOutput: (msg) => addSerialMessage(msg),
-        onPinChange: (change) => setPinState(change.pin, change.value),
+        onPinChange: (change) => {
+          setPinState(change.pin, change.value);
+          addWaveformSample({
+            pin: change.pin,
+            value: change.value,
+            time: Date.now(),
+            mode: change.mode,
+          });
+        },
         onError: (error) => addError(error),
         onStateChange: (state) => {
           setRunning(state.running);
           setPaused(state.paused);
+          // Update variable inspector
+          const vars: Record<string, { value: string | number | boolean; type: string }> = {};
+          for (const [k, v] of Object.entries(state.variables)) {
+            vars[k] = {
+              value: v,
+              type: typeof v === 'string' ? 'String' : typeof v === 'number' ? (Number.isInteger(v) ? 'int' : 'float') : 'bool',
+            };
+          }
+          setRuntimeVariables(vars);
         },
-        onLineChange: () => {},
+        onLineChange: (line) => {
+          setCurrentExecutionLine(line);
+        },
         onBusMessage: (msg) => {
-          // Log bus messages to serial for visibility
           addSerialMessage({
             timestamp: msg.timestamp,
             text: `[${msg.bus}] ${msg.direction}: [${msg.data.join(', ')}]\n`,
@@ -37,16 +60,18 @@ export default function BottomPanel() {
       });
     }
     return runtimeRef.current;
-  }, [addSerialMessage, setPinState, addError, setRunning, setPaused]);
+  }, [addSerialMessage, setPinState, addError, setRunning, setPaused, setRuntimeVariables, addWaveformSample, setCurrentExecutionLine]);
 
   const handleRun = useCallback(() => {
     const rt = getRuntime();
     clearSerial();
     clearErrors();
     resetPinStates();
+    clearWaveform();
+    setCurrentExecutionLine(-1);
     rt.setSpeed(speed);
     rt.run(code);
-  }, [code, speed, getRuntime, clearSerial, clearErrors, resetPinStates]);
+  }, [code, speed, getRuntime, clearSerial, clearErrors, resetPinStates, clearWaveform, setCurrentExecutionLine]);
 
   const handlePause = useCallback(() => {
     const rt = getRuntime();
@@ -57,7 +82,9 @@ export default function BottomPanel() {
     const rt = getRuntime();
     rt.stop();
     resetPinStates();
-  }, [getRuntime, resetPinStates]);
+    setCurrentExecutionLine(-1);
+    setRuntimeVariables({});
+  }, [getRuntime, resetPinStates, setCurrentExecutionLine, setRuntimeVariables]);
 
   const handleReset = useCallback(() => {
     const rt = getRuntime();
@@ -65,7 +92,10 @@ export default function BottomPanel() {
     clearSerial();
     clearErrors();
     resetPinStates();
-  }, [getRuntime, clearSerial, clearErrors, resetPinStates]);
+    clearWaveform();
+    setCurrentExecutionLine(-1);
+    setRuntimeVariables({});
+  }, [getRuntime, clearSerial, clearErrors, resetPinStates, clearWaveform, setCurrentExecutionLine, setRuntimeVariables]);
 
   const prevSpeed = useRef(speed);
   if (prevSpeed.current !== speed && runtimeRef.current) {
@@ -73,8 +103,15 @@ export default function BottomPanel() {
     prevSpeed.current = speed;
   }
 
+  const tabs: { id: typeof activeBottomTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'code', label: 'Code', icon: <Code2 className="w-3 h-3" /> },
+    { id: 'serial', label: 'Serial', icon: <Terminal className="w-3 h-3" /> },
+    { id: 'waveform', label: 'Signals', icon: <WaveIcon className="w-3 h-3" /> },
+    { id: 'variables', label: 'Variables', icon: <Eye className="w-3 h-3" /> },
+  ];
+
   return (
-    <div className="flex flex-col border-t border-border bg-[#0d1117]" style={{ height: 280 }}>
+    <div className="flex flex-col border-t border-border bg-[#0d1117]" style={{ height: 300 }}>
       <div className="h-9 flex items-center px-3 gap-1 border-b border-border/50 bg-[#161b22] shrink-0">
         <button onClick={handleRun} disabled={isRunning && !isPaused}
           className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-success/15 text-success hover:bg-success/25 disabled:opacity-30 transition-colors">
@@ -93,31 +130,32 @@ export default function BottomPanel() {
           <RotateCcw className="w-3 h-3" /> Reset
         </button>
 
-        <div className="w-px h-5 bg-border/50 mx-2" />
+        <div className="w-px h-5 bg-border/50 mx-1" />
 
-        <button onClick={() => setActiveBottomTab('code')}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-            activeBottomTab === 'code' ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground'
-          }`}>
-          <Code2 className="w-3 h-3" /> Code
-        </button>
-        <button onClick={() => setActiveBottomTab('serial')}
-          className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-            activeBottomTab === 'serial' ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground'
-          }`}>
-          <Terminal className="w-3 h-3" /> Serial
-        </button>
+        {/* Debug controls */}
+        <DebugControls />
+
+        <div className="w-px h-5 bg-border/50 mx-1" />
+
+        {/* Tabs */}
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => setActiveBottomTab(tab.id)}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+              activeBottomTab === tab.id ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground'
+            }`}>
+            {tab.icon} {tab.label}
+          </button>
+        ))}
 
         <div className="flex-1" />
         <SimulationControls />
       </div>
 
       <div className="flex-1 overflow-hidden flex">
-        {activeBottomTab === 'code' ? (
-          <div className="flex-1"><MultiFileEditor /></div>
-        ) : (
-          <div className="flex-1"><SerialMonitor /></div>
-        )}
+        {activeBottomTab === 'code' && <div className="flex-1"><MultiFileEditor /></div>}
+        {activeBottomTab === 'serial' && <div className="flex-1"><SerialMonitor /></div>}
+        {activeBottomTab === 'waveform' && <div className="flex-1"><WaveformViewer /></div>}
+        {activeBottomTab === 'variables' && <div className="flex-1"><VariableInspector /></div>}
       </div>
     </div>
   );

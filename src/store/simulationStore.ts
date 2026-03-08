@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { SerialMessage } from '@/engine/ArduinoRuntime';
+import { SerialMessage, PinChange } from '@/engine/ArduinoRuntime';
 import { DEFAULT_CODE } from '@/engine/ArduinoRuntime';
 
 export interface MqttMessage {
@@ -16,6 +16,18 @@ export interface MqttConfig {
   password: string;
 }
 
+export interface WaveformSample {
+  pin: number;
+  value: number;
+  time: number;
+  mode: 'digital' | 'analog';
+}
+
+export interface DebugBreakpoint {
+  line: number;
+  enabled: boolean;
+}
+
 interface SimulationState {
   code: string;
   setCode: (code: string) => void;
@@ -26,6 +38,10 @@ interface SimulationState {
   setRunning: (running: boolean) => void;
   setPaused: (paused: boolean) => void;
   setSpeed: (speed: number) => void;
+
+  // Runtime mode
+  runtimeMode: 'javascript' | 'avr8js';
+  setRuntimeMode: (mode: 'javascript' | 'avr8js') => void;
 
   serialOutput: SerialMessage[];
   addSerialMessage: (msg: SerialMessage) => void;
@@ -45,8 +61,32 @@ interface SimulationState {
 
   bottomPanelHeight: number;
   setBottomPanelHeight: (h: number) => void;
-  activeBottomTab: 'code' | 'serial';
-  setActiveBottomTab: (tab: 'code' | 'serial') => void;
+  activeBottomTab: 'code' | 'serial' | 'waveform' | 'variables';
+  setActiveBottomTab: (tab: 'code' | 'serial' | 'waveform' | 'variables') => void;
+
+  // Debugger
+  breakpoints: DebugBreakpoint[];
+  addBreakpoint: (line: number) => void;
+  removeBreakpoint: (line: number) => void;
+  toggleBreakpoint: (line: number) => void;
+  clearBreakpoints: () => void;
+  currentExecutionLine: number;
+  setCurrentExecutionLine: (line: number) => void;
+  debugMode: boolean;
+  setDebugMode: (mode: boolean) => void;
+  isSteppingOver: boolean;
+  setIsSteppingOver: (v: boolean) => void;
+
+  // Variables
+  runtimeVariables: Record<string, { value: string | number | boolean; type: string }>;
+  setRuntimeVariables: (vars: Record<string, { value: string | number | boolean; type: string }>) => void;
+
+  // Waveform
+  waveformData: WaveformSample[];
+  addWaveformSample: (sample: WaveformSample) => void;
+  clearWaveform: () => void;
+  watchedPins: number[];
+  toggleWatchPin: (pin: number) => void;
 
   // IoT
   wifiConnected: boolean;
@@ -59,7 +99,7 @@ interface SimulationState {
   addMqttMessage: (msg: MqttMessage) => void;
   clearMqttMessages: () => void;
 
-  // Sensor values (for simulation)
+  // Sensor values
   sensorValues: Record<string, number>;
   setSensorValue: (key: string, value: number) => void;
 }
@@ -75,8 +115,11 @@ export const useSimulationStore = create<SimulationState>((set) => ({
   setPaused: (paused) => set({ isPaused: paused }),
   setSpeed: (speed) => set({ speed }),
 
+  runtimeMode: 'javascript',
+  setRuntimeMode: (mode) => set({ runtimeMode: mode }),
+
   serialOutput: [],
-  addSerialMessage: (msg) => set((s) => ({ 
+  addSerialMessage: (msg) => set((s) => ({
     serialOutput: [...s.serialOutput.slice(-500), msg]
   })),
   clearSerial: () => set({ serialOutput: [] }),
@@ -93,10 +136,48 @@ export const useSimulationStore = create<SimulationState>((set) => ({
   addError: (error) => set((s) => ({ errors: [...s.errors, error] })),
   clearErrors: () => set({ errors: [] }),
 
-  bottomPanelHeight: 280,
+  bottomPanelHeight: 300,
   setBottomPanelHeight: (h) => set({ bottomPanelHeight: h }),
   activeBottomTab: 'code',
   setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
+
+  // Debugger
+  breakpoints: [],
+  addBreakpoint: (line) => set((s) => ({
+    breakpoints: [...s.breakpoints, { line, enabled: true }]
+  })),
+  removeBreakpoint: (line) => set((s) => ({
+    breakpoints: s.breakpoints.filter(b => b.line !== line)
+  })),
+  toggleBreakpoint: (line) => set((s) => {
+    const exists = s.breakpoints.find(b => b.line === line);
+    if (exists) return { breakpoints: s.breakpoints.filter(b => b.line !== line) };
+    return { breakpoints: [...s.breakpoints, { line, enabled: true }] };
+  }),
+  clearBreakpoints: () => set({ breakpoints: [] }),
+  currentExecutionLine: -1,
+  setCurrentExecutionLine: (line) => set({ currentExecutionLine: line }),
+  debugMode: false,
+  setDebugMode: (mode) => set({ debugMode: mode }),
+  isSteppingOver: false,
+  setIsSteppingOver: (v) => set({ isSteppingOver: v }),
+
+  // Variables
+  runtimeVariables: {},
+  setRuntimeVariables: (vars) => set({ runtimeVariables: vars }),
+
+  // Waveform
+  waveformData: [],
+  addWaveformSample: (sample) => set((s) => ({
+    waveformData: [...s.waveformData.slice(-2000), sample]
+  })),
+  clearWaveform: () => set({ waveformData: [] }),
+  watchedPins: [13],
+  toggleWatchPin: (pin) => set((s) => ({
+    watchedPins: s.watchedPins.includes(pin)
+      ? s.watchedPins.filter(p => p !== pin)
+      : [...s.watchedPins, pin]
+  })),
 
   // IoT
   wifiConnected: false,
