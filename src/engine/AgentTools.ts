@@ -136,7 +136,7 @@ export function executeAgentTool(tool: string, args: Record<string, unknown>): s
     case 'fixNetlistErrors': {
       const engine = new NetlistEngine();
       const { components, wires } = circuitStore;
-      const analysis = engine.analyze(components, wires);
+      const analysis = engine.buildFromCircuit(components, wires);
       if (analysis.errors.length === 0) {
         return `✅ No netlist errors. ${analysis.nets.length} nets, ${analysis.connectedComponents} connected components.`;
       }
