@@ -133,8 +133,6 @@ export function ResistorRenderer({ def, properties }: RendererProps) {
 
 // Breadboard
 export function BreadboardRenderer({ def }: RendererProps) {
-  const rows = 30;
-  const holeDiam = 3;
   return (
     <Group>
       <Rect x={0} y={0} width={def.width} height={def.height} fill="#F5F5DC" cornerRadius={3} stroke="#d4c99a" strokeWidth={1} />

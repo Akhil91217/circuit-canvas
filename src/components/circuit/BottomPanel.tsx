@@ -111,8 +111,8 @@ export default function BottomPanel() {
   ];
 
   return (
-    <div className="flex flex-col border-t border-border bg-[#0d1117]" style={{ height: 300 }}>
-      <div className="h-9 flex items-center px-3 gap-1 border-b border-border/50 bg-[#161b22] shrink-0">
+    <div className="flex flex-col border-t border-border bg-background" style={{ height: 300 }}>
+      <div className="h-9 flex items-center px-3 gap-1 border-b border-border/50 bg-muted shrink-0">
         <button onClick={handleRun} disabled={isRunning && !isPaused}
           className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-success/15 text-success hover:bg-success/25 disabled:opacity-30 transition-colors">
           <Play className="w-3 h-3" /> Run
