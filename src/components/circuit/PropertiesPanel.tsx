@@ -3,10 +3,21 @@ import { useSimulationStore } from '@/store/simulationStore';
 import { COMPONENT_DEFINITIONS } from '@/data/componentDefinitions';
 import { Settings2 } from 'lucide-react';
 
-const SENSOR_SLIDERS: Record<string, { key: string; label: string; min: number; max: number; unit: string }[]> = {
+const SENSOR_SLIDERS: Record<string, { key: string; label: string; min: number; max: number; unit: string; step?: number }[]> = {
   'ultrasonic-sensor': [{ key: 'ultrasonic-distance', label: 'Distance', min: 2, max: 400, unit: 'cm' }],
   'potentiometer': [{ key: 'potentiometer-value', label: 'Analog Value', min: 0, max: 1023, unit: '' }],
   'temperature-sensor': [{ key: 'temperature', label: 'Temperature', min: -40, max: 125, unit: '°C' }],
+  'humidity-sensor': [
+    { key: 'humidity', label: 'Humidity', min: 0, max: 100, unit: '%' },
+    { key: 'humidity-temp', label: 'Temperature', min: -40, max: 80, unit: '°C' },
+  ],
+  'light-sensor': [{ key: 'light-lux', label: 'Light Level', min: 0, max: 10000, unit: 'lux' }],
+  'accelerometer': [
+    { key: 'accel-x', label: 'Accel X', min: -16, max: 16, unit: 'g', step: 0.1 },
+    { key: 'accel-y', label: 'Accel Y', min: -16, max: 16, unit: 'g', step: 0.1 },
+    { key: 'accel-z', label: 'Accel Z', min: -16, max: 16, unit: 'g', step: 0.1 },
+  ],
+  'servo-motor': [{ key: 'servo-angle', label: 'Angle', min: 0, max: 180, unit: '°' }],
 };
 
 export default function PropertiesPanel() {
@@ -61,6 +72,9 @@ export default function PropertiesPanel() {
             <span className="text-sm font-medium text-foreground">{def?.name}</span>
           </div>
           <p className="text-[10px] text-muted-foreground font-mono">ID: {comp.id}</p>
+          {def && (
+            <p className="text-[10px] text-muted-foreground">Category: {def.category}</p>
+          )}
         </div>
 
         {/* Transform */}
@@ -82,6 +96,16 @@ export default function PropertiesPanel() {
           </div>
         </div>
 
+        {/* Bus info */}
+        {def && ('bus' in (comp.properties || {})) && (
+          <div className="space-y-1">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-accent">Bus Interface</h3>
+            <div className="bg-accent/10 rounded px-2 py-1.5 text-[10px] font-mono text-accent">
+              {String(comp.properties.bus)} — Address: {String(comp.properties.i2cAddress || 'N/A')}
+            </div>
+          </div>
+        )}
+
         {/* Sensor Simulation Sliders */}
         {sliders && (
           <div className="space-y-1.5">
@@ -93,13 +117,14 @@ export default function PropertiesPanel() {
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] text-muted-foreground">{slider.label}</label>
                   <span className="text-[10px] font-mono text-accent">
-                    {Math.round(sensorValues[slider.key] ?? slider.min)}{slider.unit}
+                    {(sensorValues[slider.key] ?? slider.min).toFixed(slider.step && slider.step < 1 ? 1 : 0)}{slider.unit}
                   </span>
                 </div>
                 <input
                   type="range"
                   min={slider.min}
                   max={slider.max}
+                  step={slider.step || 1}
                   value={sensorValues[slider.key] ?? slider.min}
                   onChange={e => setSensorValue(slider.key, Number(e.target.value))}
                   className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-accent"
@@ -116,14 +141,14 @@ export default function PropertiesPanel() {
               Pins ({def.pins.length})
             </h3>
             <div className="space-y-0.5">
-              {def.pins.slice(0, 8).map(pin => (
+              {def.pins.slice(0, 10).map(pin => (
                 <div key={pin.id} className="flex items-center justify-between text-[10px] px-1.5 py-0.5 rounded bg-muted/50">
                   <span className="text-foreground font-mono">{pin.name}</span>
                   <span className="text-muted-foreground">{pin.type}</span>
                 </div>
               ))}
-              {def.pins.length > 8 && (
-                <p className="text-[10px] text-muted-foreground text-center">+{def.pins.length - 8} more pins</p>
+              {def.pins.length > 10 && (
+                <p className="text-[10px] text-muted-foreground text-center">+{def.pins.length - 10} more pins</p>
               )}
             </div>
           </div>

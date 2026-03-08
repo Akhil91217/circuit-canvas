@@ -6,13 +6,15 @@ import Toolbar from '@/components/circuit/Toolbar';
 import BottomPanel from '@/components/circuit/BottomPanel';
 import AgentPanel from '@/components/circuit/AgentPanel';
 import IoTPanel from '@/components/circuit/IoTPanel';
-import { Cpu, Zap, Bot, Radio } from 'lucide-react';
+import NetlistPanel from '@/components/circuit/NetlistPanel';
+import { Cpu, Zap, Bot, Radio, Activity } from 'lucide-react';
 import { useSimulationStore } from '@/store/simulationStore';
 
 const CircuitEditor = () => {
   const { isRunning, isPaused } = useSimulationStore();
   const [showAgent, setShowAgent] = useState(false);
   const [showIoT, setShowIoT] = useState(false);
+  const [showNetlist, setShowNetlist] = useState(false);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
@@ -27,7 +29,7 @@ const CircuitEditor = () => {
           </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
-        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v3.0</span>
+        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v4.0</span>
         
         {isRunning && (
           <div className="flex items-center gap-1.5 text-[10px] font-mono">
@@ -41,6 +43,15 @@ const CircuitEditor = () => {
         <div className="flex-1" />
 
         {/* Panel toggles */}
+        <button
+          onClick={() => setShowNetlist(!showNetlist)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+            showNetlist ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+        >
+          <Activity className="w-3 h-3" />
+          Netlist
+        </button>
         <button
           onClick={() => setShowIoT(!showIoT)}
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
@@ -60,7 +71,7 @@ const CircuitEditor = () => {
           Agent
         </button>
 
-        <span className="text-[10px] text-muted-foreground ml-2">Phase 3 — AI + IoT</span>
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 4 — Simulation Engine</span>
       </div>
 
       {/* Toolbar */}
@@ -71,6 +82,7 @@ const CircuitEditor = () => {
         <ComponentLibrary />
         <CircuitCanvas />
         <PropertiesPanel />
+        {showNetlist && <NetlistPanel onClose={() => setShowNetlist(false)} />}
         {showIoT && <IoTPanel onClose={() => setShowIoT(false)} />}
         {showAgent && <AgentPanel onClose={() => setShowAgent(false)} />}
       </div>
