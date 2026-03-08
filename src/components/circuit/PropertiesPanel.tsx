@@ -1,18 +1,24 @@
 import { useCircuitStore } from '@/store/circuitStore';
+import { useSimulationStore } from '@/store/simulationStore';
 import { COMPONENT_DEFINITIONS } from '@/data/componentDefinitions';
 import { Settings2 } from 'lucide-react';
 
+const SENSOR_SLIDERS: Record<string, { key: string; label: string; min: number; max: number; unit: string }[]> = {
+  'ultrasonic-sensor': [{ key: 'ultrasonic-distance', label: 'Distance', min: 2, max: 400, unit: 'cm' }],
+  'potentiometer': [{ key: 'potentiometer-value', label: 'Analog Value', min: 0, max: 1023, unit: '' }],
+  'temperature-sensor': [{ key: 'temperature', label: 'Temperature', min: -40, max: 125, unit: '°C' }],
+};
+
 export default function PropertiesPanel() {
   const { components, selectedIds, updateProperty } = useCircuitStore();
+  const { sensorValues, setSensorValue, isRunning } = useSimulationStore();
   const selected = components.filter(c => selectedIds.includes(c.id));
 
   if (selected.length === 0) {
     return (
       <div className="w-56 bg-sidebar border-l border-border flex flex-col h-full">
         <div className="p-3 border-b border-border">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Properties
-          </h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Properties</h2>
         </div>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center text-muted-foreground">
@@ -28,9 +34,7 @@ export default function PropertiesPanel() {
     return (
       <div className="w-56 bg-sidebar border-l border-border flex flex-col h-full">
         <div className="p-3 border-b border-border">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Properties
-          </h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Properties</h2>
         </div>
         <div className="p-3">
           <p className="text-xs text-muted-foreground">{selected.length} components selected</p>
@@ -41,13 +45,12 @@ export default function PropertiesPanel() {
 
   const comp = selected[0];
   const def = COMPONENT_DEFINITIONS[comp.type];
+  const sliders = SENSOR_SLIDERS[comp.type];
 
   return (
     <div className="w-56 bg-sidebar border-l border-border flex flex-col h-full animate-slide-in-right">
       <div className="p-3 border-b border-border">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Properties
-        </h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Properties</h2>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -60,7 +63,7 @@ export default function PropertiesPanel() {
           <p className="text-[10px] text-muted-foreground font-mono">ID: {comp.id}</p>
         </div>
 
-        {/* Position */}
+        {/* Transform */}
         <div className="space-y-1.5">
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Transform</h3>
           <div className="grid grid-cols-2 gap-1.5">
@@ -78,6 +81,33 @@ export default function PropertiesPanel() {
             <div className="bg-muted rounded px-2 py-1 text-xs font-mono text-foreground">{comp.rotation}°</div>
           </div>
         </div>
+
+        {/* Sensor Simulation Sliders */}
+        {sliders && (
+          <div className="space-y-1.5">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-accent">
+              Simulation {isRunning && '● Live'}
+            </h3>
+            {sliders.map(slider => (
+              <div key={slider.key}>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-muted-foreground">{slider.label}</label>
+                  <span className="text-[10px] font-mono text-accent">
+                    {Math.round(sensorValues[slider.key] ?? slider.min)}{slider.unit}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={slider.min}
+                  max={slider.max}
+                  value={sensorValues[slider.key] ?? slider.min}
+                  onChange={e => setSensorValue(slider.key, Number(e.target.value))}
+                  className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-accent"
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Pins */}
         {def && def.pins.length > 0 && (
@@ -99,7 +129,7 @@ export default function PropertiesPanel() {
           </div>
         )}
 
-        {/* Editable properties */}
+        {/* Settings */}
         <div className="space-y-1.5">
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Settings</h3>
           {Object.entries(comp.properties).map(([key, value]) => (
