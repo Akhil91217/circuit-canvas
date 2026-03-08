@@ -1,13 +1,25 @@
 import { create } from 'zustand';
-import { SerialMessage, PinChange } from '@/engine/ArduinoRuntime';
+import { SerialMessage } from '@/engine/ArduinoRuntime';
 import { DEFAULT_CODE } from '@/engine/ArduinoRuntime';
 
+export interface MqttMessage {
+  topic: string;
+  message: string;
+  direction: 'in' | 'out' | 'system';
+  timestamp: number;
+}
+
+export interface MqttConfig {
+  brokerUrl: string;
+  topic: string;
+  username: string;
+  password: string;
+}
+
 interface SimulationState {
-  // Code
   code: string;
   setCode: (code: string) => void;
 
-  // Simulation status
   isRunning: boolean;
   isPaused: boolean;
   speed: number;
@@ -15,7 +27,6 @@ interface SimulationState {
   setPaused: (paused: boolean) => void;
   setSpeed: (speed: number) => void;
 
-  // Serial output
   serialOutput: SerialMessage[];
   addSerialMessage: (msg: SerialMessage) => void;
   clearSerial: () => void;
@@ -24,21 +35,33 @@ interface SimulationState {
   autoScroll: boolean;
   toggleAutoScroll: () => void;
 
-  // Pin states (from simulation)
   pinStates: Record<number, number>;
   setPinState: (pin: number, value: number) => void;
   resetPinStates: () => void;
 
-  // Errors
   errors: string[];
   addError: (error: string) => void;
   clearErrors: () => void;
 
-  // Bottom panel
   bottomPanelHeight: number;
   setBottomPanelHeight: (h: number) => void;
   activeBottomTab: 'code' | 'serial';
   setActiveBottomTab: (tab: 'code' | 'serial') => void;
+
+  // IoT
+  wifiConnected: boolean;
+  setWifiConnected: (connected: boolean) => void;
+  mqttConnected: boolean;
+  setMqttConnected: (connected: boolean) => void;
+  mqttConfig: MqttConfig;
+  setMqttConfig: (config: MqttConfig) => void;
+  mqttMessages: MqttMessage[];
+  addMqttMessage: (msg: MqttMessage) => void;
+  clearMqttMessages: () => void;
+
+  // Sensor values (for simulation)
+  sensorValues: Record<string, number>;
+  setSensorValue: (key: string, value: number) => void;
 }
 
 export const useSimulationStore = create<SimulationState>((set) => ({
@@ -54,7 +77,7 @@ export const useSimulationStore = create<SimulationState>((set) => ({
 
   serialOutput: [],
   addSerialMessage: (msg) => set((s) => ({ 
-    serialOutput: [...s.serialOutput.slice(-500), msg] // keep last 500 messages
+    serialOutput: [...s.serialOutput.slice(-500), msg]
   })),
   clearSerial: () => set({ serialOutput: [] }),
   showTimestamps: false,
@@ -74,4 +97,28 @@ export const useSimulationStore = create<SimulationState>((set) => ({
   setBottomPanelHeight: (h) => set({ bottomPanelHeight: h }),
   activeBottomTab: 'code',
   setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
+
+  // IoT
+  wifiConnected: false,
+  setWifiConnected: (connected) => set({ wifiConnected: connected }),
+  mqttConnected: false,
+  setMqttConnected: (connected) => set({ mqttConnected: connected }),
+  mqttConfig: {
+    brokerUrl: 'wss://broker.hivemq.com:8884/mqtt',
+    topic: 'circuitforge/data',
+    username: '',
+    password: '',
+  },
+  setMqttConfig: (config) => set({ mqttConfig: config }),
+  mqttMessages: [],
+  addMqttMessage: (msg) => set((s) => ({ mqttMessages: [...s.mqttMessages.slice(-100), msg] })),
+  clearMqttMessages: () => set({ mqttMessages: [] }),
+
+  // Sensor values
+  sensorValues: {
+    'ultrasonic-distance': 100,
+    'potentiometer-value': 512,
+    'temperature': 25,
+  },
+  setSensorValue: (key, value) => set((s) => ({ sensorValues: { ...s.sensorValues, [key]: value } })),
 }));
