@@ -21,17 +21,17 @@ const CircuitEditor = () => {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
       {/* Header */}
-      <div className="h-11 bg-[#0a0e16] border-b border-border/60 flex items-center px-4 gap-3 backdrop-blur-sm">
+      <div className="h-11 bg-muted/30 border-b border-border/60 flex items-center px-4 gap-3 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <div className="relative">
             <Cpu className="w-5 h-5 text-accent" />
             {isRunning && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-success animate-pulse" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             )}
           </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
-        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v5.0</span>
+        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v6.0</span>
 
         {runtimeMode === 'avr8js' && (
           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
@@ -41,8 +41,8 @@ const CircuitEditor = () => {
 
         {isRunning && (
           <div className="flex items-center gap-1.5 text-[10px] font-mono">
-            <Zap className="w-3 h-3 text-success animate-pulse" />
-            <span className={isPaused ? 'text-warning' : 'text-success'}>
+            <Zap className="w-3 h-3 text-emerald-400 animate-pulse" />
+            <span className={isPaused ? 'text-warning' : 'text-emerald-400'}>
               {isPaused ? 'PAUSED' : 'SIMULATING'}
             </span>
           </div>
@@ -51,44 +51,25 @@ const CircuitEditor = () => {
         <div className="flex-1" />
 
         {/* Panel toggles */}
-        <button
-          onClick={() => setShowExport(!showExport)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-            showExport ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-          }`}
-        >
-          <Download className="w-3 h-3" />
-          Export
-        </button>
-        <button
-          onClick={() => setShowNetlist(!showNetlist)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-            showNetlist ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-          }`}
-        >
-          <Activity className="w-3 h-3" />
-          Netlist
-        </button>
-        <button
-          onClick={() => setShowIoT(!showIoT)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-            showIoT ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-          }`}
-        >
-          <Radio className="w-3 h-3" />
-          IoT
-        </button>
-        <button
-          onClick={() => setShowAgent(!showAgent)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-            showAgent ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-          }`}
-        >
-          <Bot className="w-3 h-3" />
-          Agent
-        </button>
+        {[
+          { key: 'export', show: showExport, set: setShowExport, icon: <Download className="w-3 h-3" />, label: 'Export' },
+          { key: 'netlist', show: showNetlist, set: setShowNetlist, icon: <Activity className="w-3 h-3" />, label: 'Netlist' },
+          { key: 'iot', show: showIoT, set: setShowIoT, icon: <Radio className="w-3 h-3" />, label: 'IoT' },
+          { key: 'agent', show: showAgent, set: setShowAgent, icon: <Bot className="w-3 h-3" />, label: 'Agent' },
+        ].map(btn => (
+          <button
+            key={btn.key}
+            onClick={() => btn.set(!btn.show)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+              btn.show ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            {btn.icon}
+            {btn.label}
+          </button>
+        ))}
 
-        <span className="text-[10px] text-muted-foreground ml-2">Phase 5 — Debug & Export</span>
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 6 — AI Agent & Rendering</span>
       </div>
 
       {/* Toolbar */}
