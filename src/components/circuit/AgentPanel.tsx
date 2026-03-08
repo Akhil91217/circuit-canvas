@@ -13,7 +13,91 @@ interface ChatMessage {
   agentSteps?: AgentStep[];
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/circuit-ai-chat`;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const CHAT_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/circuit-ai-chat` : null;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+const SYSTEM_PROMPT = `You are CircuitForge AI Agent — an autonomous embedded systems assistant inside a visual circuit simulator.
+You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions.
+WORKFLOW: 1. Add components using addComponent 2. Connect pins using connectPins 3. Generate Arduino code using generateArduinoCode 4. Start simulation using runSimulation
+IMPORTANT: Always add components before connecting them. Space components apart (150px+). Use correct pin IDs.
+Arduino Uno pins: d0-d13, a0-a5, 5v, 3v3, gnd1, gnd2, vin. LED: anode, cathode. Resistor: terminal1, terminal2.
+Available components: arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, lcd-16x2, oled-display, 7-segment, led-matrix, keypad, rtc-module, sd-card, motor-driver`;
+
+const GEMINI_TOOLS = [
+  {
+    functionDeclarations: [
+      { name: "addComponent", description: "Add an electronic component to the circuit canvas", parameters: { type: "object", properties: { type: { type: "string", description: "Component type ID" }, x: { type: "number" }, y: { type: "number" } }, required: ["type"] } },
+      { name: "removeComponent", description: "Remove a component by ID", parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+      { name: "connectPins", description: "Wire two pins", parameters: { type: "object", properties: { fromComponent: { type: "string" }, fromPin: { type: "string" }, toComponent: { type: "string" }, toPin: { type: "string" } }, required: ["fromComponent", "fromPin", "toComponent", "toPin"] } },
+      { name: "generateArduinoCode", description: "Set Arduino code", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
+      { name: "runSimulation", description: "Start simulation", parameters: { type: "object", properties: {} } },
+      { name: "fixNetlistErrors", description: "Analyze and fix netlist errors", parameters: { type: "object", properties: {} } },
+    ],
+  },
+];
+
+async function callGeminiDirect(messages: Array<{role: string; content: string}>, useTools: boolean) {
+  if (!GEMINI_API_KEY) throw new Error("No API key configured. Add VITE_GEMINI_API_KEY to your .env file for local development.");
+  
+  const geminiMessages = [
+    { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent ready to help." }] },
+    ...messages.map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    })),
+  ];
+
+  const body: Record<string, unknown> = {
+    contents: geminiMessages,
+    generationConfig: { temperature: 0.7 },
+  };
+  if (useTools) body.tools = GEMINI_TOOLS;
+
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Gemini API error: ${resp.status} ${errText.slice(0, 200)}`);
+  }
+
+  const data = await resp.json();
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const toolCalls = parts.filter((p: any) => p.functionCall);
+  const textParts = parts.filter((p: any) => p.text);
+
+  if (toolCalls.length > 0) {
+    return {
+      choices: [{
+        message: {
+          role: "assistant",
+          content: textParts.map((p: any) => p.text).join("") || null,
+          tool_calls: toolCalls.map((p: any, i: number) => ({
+            id: `call_${i}`,
+            type: "function",
+            function: {
+              name: p.functionCall.name,
+              arguments: JSON.stringify(p.functionCall.args || {}),
+            },
+          })),
+        },
+      }],
+    };
+  }
+  return {
+    choices: [{
+      message: {
+        role: "assistant",
+        content: textParts.map((p: any) => p.text).join(""),
+      },
+    }],
+  };
+}
 
 const QUICK_PROMPTS = [
   { icon: '💡', text: 'Build an LED blink circuit with Arduino' },
