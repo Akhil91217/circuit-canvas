@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Rect, Circle, Line, Text, Ellipse, Arc, RegularPolygon } from 'react-konva';
+import { Group, Rect, Circle, Line, Text } from 'react-konva';
 import { ComponentDefinition } from '@/types/circuit';
 
 interface RendererProps {
