@@ -182,88 +182,95 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
     const allMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
 
     try {
-      const resp = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ messages: allMessages, useTools: agentMode }),
-      });
+      let data: any;
 
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(errData.error || `HTTP ${resp.status}`);
-      }
+      if (CHAT_URL) {
+        // Use edge function (Lovable Cloud / self-hosted Supabase)
+        const resp = await fetch(CHAT_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ messages: allMessages, useTools: agentMode }),
+        });
 
-      if (agentMode) {
-        // Non-streaming tool-call response
-        const data = await resp.json();
-        const choice = data.choices?.[0];
-        const message = choice?.message;
-
-        if (message?.tool_calls?.length > 0) {
-          const steps = await executeToolCalls(message.tool_calls);
-
-          // Update last assistant message with final content
-          const summary = message.content || steps.map(s => s.result).filter(Boolean).join('\n');
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last?.role === 'assistant') {
-              return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: summary, agentSteps: steps } : m);
-            }
-            return [...prev, { role: 'assistant', content: summary, agentSteps: steps }];
-          });
-        } else if (message?.content) {
-          setMessages(prev => [...prev, { role: 'assistant', content: message.content }]);
-          // Check for legacy code blocks
-          const codeMatch = message.content.match(/```arduino\s*([\s\S]*?)```/);
-          if (codeMatch) setCode(codeMatch[1].trim());
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({ error: 'Request failed' }));
+          throw new Error(errData.error || `HTTP ${resp.status}`);
         }
-      } else {
-        // Streaming mode (legacy)
-        const reader = resp.body!.getReader();
-        const decoder = new TextDecoder();
-        let textBuffer = '';
-        let assistantSoFar = '';
-        let streamDone = false;
 
-        while (!streamDone) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          textBuffer += decoder.decode(value, { stream: true });
+        if (agentMode) {
+          data = await resp.json();
+        } else {
+          // Streaming mode
+          const reader = resp.body!.getReader();
+          const decoder = new TextDecoder();
+          let textBuffer = '';
+          let assistantSoFar = '';
+          let streamDone = false;
 
-          let newlineIndex: number;
-          while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
-            let line = textBuffer.slice(0, newlineIndex);
-            textBuffer = textBuffer.slice(newlineIndex + 1);
-            if (line.endsWith('\r')) line = line.slice(0, -1);
-            if (line.startsWith(':') || line.trim() === '') continue;
-            if (!line.startsWith('data: ')) continue;
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === '[DONE]') { streamDone = true; break; }
+          while (!streamDone) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            textBuffer += decoder.decode(value, { stream: true });
 
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-              if (content) {
-                assistantSoFar += content;
-                setMessages(prev => {
-                  const last = prev[prev.length - 1];
-                  if (last?.role === 'assistant') {
-                    return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
-                  }
-                  return [...prev, { role: 'assistant', content: assistantSoFar }];
-                });
+            let newlineIndex: number;
+            while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
+              let line = textBuffer.slice(0, newlineIndex);
+              textBuffer = textBuffer.slice(newlineIndex + 1);
+              if (line.endsWith('\r')) line = line.slice(0, -1);
+              if (line.startsWith(':') || line.trim() === '') continue;
+              if (!line.startsWith('data: ')) continue;
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === '[DONE]') { streamDone = true; break; }
+
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+                if (content) {
+                  assistantSoFar += content;
+                  setMessages(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last?.role === 'assistant') {
+                      return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
+                    }
+                    return [...prev, { role: 'assistant', content: assistantSoFar }];
+                  });
+                }
+              } catch {
+                textBuffer = line + '\n' + textBuffer;
+                break;
               }
-            } catch {
-              textBuffer = line + '\n' + textBuffer;
-              break;
             }
           }
-        }
 
-        const codeMatch = assistantSoFar.match(/```arduino\s*([\s\S]*?)```/);
+          const codeMatch = assistantSoFar.match(/```arduino\s*([\s\S]*?)```/);
+          if (codeMatch) setCode(codeMatch[1].trim());
+          return; // streaming handled, exit early
+        }
+      } else {
+        // Direct Gemini API call (local development without Supabase)
+        data = await callGeminiDirect(allMessages, agentMode);
+      }
+
+      // Process tool-call response (both paths produce same format)
+      const choice = data.choices?.[0];
+      const message = choice?.message;
+
+      if (message?.tool_calls?.length > 0) {
+        const steps = await executeToolCalls(message.tool_calls);
+        const summary = message.content || steps.map(s => s.result).filter(Boolean).join('\n');
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant') {
+            return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: summary, agentSteps: steps } : m);
+          }
+          return [...prev, { role: 'assistant', content: summary, agentSteps: steps }];
+        });
+      } else if (message?.content) {
+        setMessages(prev => [...prev, { role: 'assistant', content: message.content }]);
+        const codeMatch = message.content.match(/```arduino\s*([\s\S]*?)```/);
         if (codeMatch) setCode(codeMatch[1].trim());
       }
     } catch (e: any) {
