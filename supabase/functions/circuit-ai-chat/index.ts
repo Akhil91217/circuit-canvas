@@ -115,30 +115,119 @@ serve(async (req) => {
   try {
     const { messages, useTools } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
-    const body: Record<string, unknown> = {
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...messages,
-      ],
-      stream: !useTools,
-    };
-
-    if (useTools) {
-      body.tools = AGENT_TOOLS_SCHEMA;
-      body.tool_choice = "auto";
+    if (!LOVABLE_API_KEY && !GEMINI_API_KEY) {
+      throw new Error("No AI API key configured. Set LOVABLE_API_KEY or GEMINI_API_KEY.");
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+    // Determine which provider to use
+    const useLovableGateway = !!LOVABLE_API_KEY;
+    
+    let response: Response;
+
+    if (useLovableGateway) {
+      // --- Lovable AI Gateway (works on Lovable Cloud) ---
+      const body: Record<string, unknown> = {
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...messages,
+        ],
+        stream: !useTools,
+      };
+      if (useTools) {
+        body.tools = AGENT_TOOLS_SCHEMA;
+        body.tool_choice = "auto";
+      }
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } else {
+      // --- Direct Google Gemini API (works when self-hosted) ---
+      const geminiMessages = [
+        { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+        { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent ready to help." }] },
+        ...messages.map((m: { role: string; content: string }) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        })),
+      ];
+
+      const geminiBody: Record<string, unknown> = {
+        contents: geminiMessages,
+        generationConfig: { temperature: 0.7 },
+      };
+
+      if (useTools) {
+        geminiBody.tools = [{
+          functionDeclarations: AGENT_TOOLS_SCHEMA.map(t => ({
+            name: t.function.name,
+            description: t.function.description,
+            parameters: t.function.parameters,
+          })),
+        }];
+      }
+
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const geminiResp = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiBody),
+      });
+
+      if (!geminiResp.ok) {
+        const errText = await geminiResp.text();
+        console.error("Gemini API error:", geminiResp.status, errText);
+        return new Response(JSON.stringify({ error: "Gemini API error" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Transform Gemini response to OpenAI-compatible format
+      const geminiData = await geminiResp.json();
+      const candidate = geminiData.candidates?.[0];
+      const parts = candidate?.content?.parts || [];
+
+      const openaiChoices = [];
+      const toolCalls = parts.filter((p: any) => p.functionCall);
+      const textParts = parts.filter((p: any) => p.text);
+
+      if (toolCalls.length > 0) {
+        openaiChoices.push({
+          message: {
+            role: "assistant",
+            content: textParts.map((p: any) => p.text).join("") || null,
+            tool_calls: toolCalls.map((p: any, i: number) => ({
+              id: `call_${i}`,
+              type: "function",
+              function: {
+                name: p.functionCall.name,
+                arguments: JSON.stringify(p.functionCall.args || {}),
+              },
+            })),
+          },
+          finish_reason: "tool_calls",
+        });
+      } else {
+        openaiChoices.push({
+          message: {
+            role: "assistant",
+            content: textParts.map((p: any) => p.text).join(""),
+          },
+          finish_reason: "stop",
+        });
+      }
+
+      return new Response(JSON.stringify({ choices: openaiChoices }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
