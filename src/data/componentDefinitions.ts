@@ -10,7 +10,6 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
     color: '#0d7377',
     icon: '🔲',
     pins: [
-      // Digital pins (right side)
       ...Array.from({ length: 14 }, (_, i) => ({
         id: `d${i}`,
         name: `D${i}`,
@@ -19,7 +18,6 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
         offsetX: 140,
         offsetY: 20 + i * 12,
       })),
-      // Analog pins (left side)
       ...Array.from({ length: 6 }, (_, i) => ({
         id: `a${i}`,
         name: `A${i}`,
@@ -28,7 +26,6 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
         offsetX: 0,
         offsetY: 20 + i * 12,
       })),
-      // Power pins (bottom left)
       { id: '5v', name: '5V', type: 'power' as const, direction: 'output' as const, offsetX: 0, offsetY: 100 },
       { id: '3v3', name: '3.3V', type: 'power' as const, direction: 'output' as const, offsetX: 0, offsetY: 112 },
       { id: 'gnd1', name: 'GND', type: 'ground' as const, direction: 'output' as const, offsetX: 0, offsetY: 124 },
@@ -36,6 +33,50 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
       { id: 'vin', name: 'VIN', type: 'power' as const, direction: 'input' as const, offsetX: 0, offsetY: 148 },
     ],
     defaultProperties: { boardName: 'Arduino Uno', clockSpeed: 16 },
+  },
+  esp32: {
+    type: 'esp32',
+    category: 'Microcontrollers',
+    name: 'ESP32',
+    width: 120,
+    height: 220,
+    color: '#e53935',
+    icon: '📶',
+    pins: [
+      // Left side GPIO
+      ...Array.from({ length: 16 }, (_, i) => ({
+        id: `gpio${i}`,
+        name: `GPIO${i}`,
+        type: 'digital' as const,
+        direction: 'bidirectional' as const,
+        offsetX: 0,
+        offsetY: 16 + i * 12,
+      })),
+      // Right side GPIO
+      ...Array.from({ length: 10 }, (_, i) => ({
+        id: `gpio${i + 16}`,
+        name: `GPIO${i + 16}`,
+        type: 'digital' as const,
+        direction: 'bidirectional' as const,
+        offsetX: 120,
+        offsetY: 16 + i * 12,
+      })),
+      // Analog inputs
+      ...Array.from({ length: 6 }, (_, i) => ({
+        id: `adc${i}`,
+        name: `ADC${i}`,
+        type: 'analog' as const,
+        direction: 'input' as const,
+        offsetX: 120,
+        offsetY: 136 + i * 12,
+      })),
+      // Power
+      { id: '3v3', name: '3.3V', type: 'power' as const, direction: 'output' as const, offsetX: 0, offsetY: 200 },
+      { id: 'gnd1', name: 'GND', type: 'ground' as const, direction: 'output' as const, offsetX: 0, offsetY: 212 },
+      { id: 'vin', name: 'VIN', type: 'power' as const, direction: 'input' as const, offsetX: 120, offsetY: 200 },
+      { id: 'gnd2', name: 'GND', type: 'ground' as const, direction: 'output' as const, offsetX: 120, offsetY: 212 },
+    ],
+    defaultProperties: { boardName: 'ESP32 DevKit', clockSpeed: 240, wifiEnabled: true, ssid: 'CircuitForge_Net' },
   },
   led: {
     type: 'led',
@@ -92,6 +133,35 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
     pins: [],
     defaultProperties: { rows: 30 },
   },
+  buzzer: {
+    type: 'buzzer',
+    category: 'Basic Components',
+    name: 'Buzzer',
+    width: 36,
+    height: 36,
+    color: '#1e1e1e',
+    icon: '🔊',
+    pins: [
+      { id: 'positive', name: '+', type: 'signal', direction: 'input', offsetX: 12, offsetY: 0 },
+      { id: 'negative', name: '-', type: 'ground', direction: 'input', offsetX: 24, offsetY: 0 },
+    ],
+    defaultProperties: { frequency: 1000, active: false },
+  },
+  'servo-motor': {
+    type: 'servo-motor',
+    category: 'Basic Components',
+    name: 'Servo Motor',
+    width: 56,
+    height: 40,
+    color: '#2563eb',
+    icon: '⚙️',
+    pins: [
+      { id: 'signal', name: 'Signal', type: 'digital', direction: 'input', offsetX: 14, offsetY: 40 },
+      { id: 'vcc', name: 'VCC', type: 'power', direction: 'input', offsetX: 28, offsetY: 40 },
+      { id: 'gnd', name: 'GND', type: 'ground', direction: 'input', offsetX: 42, offsetY: 40 },
+    ],
+    defaultProperties: { angle: 90, minAngle: 0, maxAngle: 180 },
+  },
   'ultrasonic-sensor': {
     type: 'ultrasonic-sensor',
     category: 'Sensors',
@@ -106,7 +176,7 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
       { id: 'echo', name: 'ECHO', type: 'digital', direction: 'output', offsetX: 38, offsetY: 50 },
       { id: 'gnd', name: 'GND', type: 'ground', direction: 'input', offsetX: 50, offsetY: 50 },
     ],
-    defaultProperties: { maxRange: 400 },
+    defaultProperties: { maxRange: 400, distance: 100 },
   },
   potentiometer: {
     type: 'potentiometer',
@@ -121,7 +191,22 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
       { id: 'wiper', name: 'Wiper', type: 'analog', direction: 'output', offsetX: 22, offsetY: 44 },
       { id: 'pin3', name: 'Pin 3', type: 'signal', direction: 'bidirectional', offsetX: 38, offsetY: 44 },
     ],
-    defaultProperties: { value: 50, maxResistance: 10000 },
+    defaultProperties: { value: 512, maxResistance: 10000 },
+  },
+  'temperature-sensor': {
+    type: 'temperature-sensor',
+    category: 'Sensors',
+    name: 'Temperature Sensor',
+    width: 30,
+    height: 40,
+    color: '#f59e0b',
+    icon: '🌡️',
+    pins: [
+      { id: 'vcc', name: 'VCC', type: 'power', direction: 'input', offsetX: 6, offsetY: 40 },
+      { id: 'data', name: 'DATA', type: 'analog', direction: 'output', offsetX: 15, offsetY: 40 },
+      { id: 'gnd', name: 'GND', type: 'ground', direction: 'input', offsetX: 24, offsetY: 40 },
+    ],
+    defaultProperties: { temperature: 25, minTemp: -40, maxTemp: 125 },
   },
   'lcd-16x2': {
     type: 'lcd-16x2',
@@ -148,8 +233,8 @@ export const COMPONENT_DEFINITIONS: Record<string, ComponentDefinition> = {
 };
 
 export const CATEGORIES = [
-  { name: 'Microcontrollers', components: ['arduino-uno'] },
-  { name: 'Basic Components', components: ['led', 'resistor', 'push-button', 'breadboard'] },
-  { name: 'Sensors', components: ['ultrasonic-sensor', 'potentiometer'] },
+  { name: 'Microcontrollers', components: ['arduino-uno', 'esp32'] },
+  { name: 'Basic Components', components: ['led', 'resistor', 'push-button', 'breadboard', 'buzzer', 'servo-motor'] },
+  { name: 'Sensors', components: ['ultrasonic-sensor', 'potentiometer', 'temperature-sensor'] },
   { name: 'Displays', components: ['lcd-16x2'] },
 ];

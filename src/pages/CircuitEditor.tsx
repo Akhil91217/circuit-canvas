@@ -1,13 +1,18 @@
+import { useState } from 'react';
 import ComponentLibrary from '@/components/circuit/ComponentLibrary';
 import CircuitCanvas from '@/components/circuit/CircuitCanvas';
 import PropertiesPanel from '@/components/circuit/PropertiesPanel';
 import Toolbar from '@/components/circuit/Toolbar';
 import BottomPanel from '@/components/circuit/BottomPanel';
-import { Cpu, Zap } from 'lucide-react';
+import AgentPanel from '@/components/circuit/AgentPanel';
+import IoTPanel from '@/components/circuit/IoTPanel';
+import { Cpu, Zap, Bot, Radio } from 'lucide-react';
 import { useSimulationStore } from '@/store/simulationStore';
 
 const CircuitEditor = () => {
   const { isRunning, isPaused } = useSimulationStore();
+  const [showAgent, setShowAgent] = useState(false);
+  const [showIoT, setShowIoT] = useState(false);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
@@ -22,7 +27,7 @@ const CircuitEditor = () => {
           </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
-        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v2.0</span>
+        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v3.0</span>
         
         {isRunning && (
           <div className="flex items-center gap-1.5 text-[10px] font-mono">
@@ -34,7 +39,28 @@ const CircuitEditor = () => {
         )}
 
         <div className="flex-1" />
-        <span className="text-[10px] text-muted-foreground">Phase 2 — Simulation Engine</span>
+
+        {/* Panel toggles */}
+        <button
+          onClick={() => setShowIoT(!showIoT)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+            showIoT ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+        >
+          <Radio className="w-3 h-3" />
+          IoT
+        </button>
+        <button
+          onClick={() => setShowAgent(!showAgent)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+            showAgent ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+        >
+          <Bot className="w-3 h-3" />
+          Agent
+        </button>
+
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 3 — AI + IoT</span>
       </div>
 
       {/* Toolbar */}
@@ -45,9 +71,11 @@ const CircuitEditor = () => {
         <ComponentLibrary />
         <CircuitCanvas />
         <PropertiesPanel />
+        {showIoT && <IoTPanel onClose={() => setShowIoT(false)} />}
+        {showAgent && <AgentPanel onClose={() => setShowAgent(false)} />}
       </div>
 
-      {/* Bottom Panel - Code Editor + Serial Monitor */}
+      {/* Bottom Panel */}
       <BottomPanel />
     </div>
   );

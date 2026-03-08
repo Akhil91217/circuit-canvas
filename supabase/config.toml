@@ -1,0 +1,4 @@
+project_id = "vocgkqhlysbehdtklquz"
+
+[functions.circuit-ai-chat]
+verify_jwt = false
