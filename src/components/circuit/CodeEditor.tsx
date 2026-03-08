@@ -1,15 +1,18 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { useSimulationStore } from '@/store/simulationStore';
 
 export default function CodeEditor() {
-  const { code, setCode } = useSimulationStore();
+  const { code, setCode, breakpoints, toggleBreakpoint, currentExecutionLine } = useSimulationStore();
   const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
+  const decorationsRef = useRef<string[]>([]);
 
   const handleMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
 
-    // Register Arduino language (based on C++)
+    // Register Arduino language
     monaco.languages.register({ id: 'arduino' });
     monaco.languages.setMonarchTokensProvider('arduino', {
       keywords: [
@@ -24,15 +27,14 @@ export default function CodeEditor() {
         'pinMode', 'digitalWrite', 'digitalRead', 'analogWrite', 'analogRead',
         'delay', 'delayMicroseconds', 'millis', 'micros',
         'map', 'constrain', 'min', 'max', 'abs', 'pow', 'sqrt',
-        'Serial', 'Wire', 'SPI', 'WiFi',
+        'Serial', 'Wire', 'SPI', 'WiFi', 'Servo',
         'setup', 'loop',
         'begin', 'print', 'println', 'write', 'read', 'available',
         'tone', 'noTone', 'pulseIn', 'shiftOut', 'shiftIn',
         'attachInterrupt', 'detachInterrupt',
+        'attach', 'detach',
       ],
-      typeKeywords: [
-        'String', 'boolean', 'byte', 'word', 'array',
-      ],
+      typeKeywords: ['String', 'boolean', 'byte', 'word', 'array'],
       operators: [
         '=', '>', '<', '!', '~', '?', ':',
         '==', '<=', '>=', '!=', '&&', '||', '++', '--',
@@ -50,12 +52,7 @@ export default function CodeEditor() {
             },
           }],
           [/[{}()[\]]/, '@brackets'],
-          [/@symbols/, {
-            cases: {
-              '@operators': 'operator',
-              '@default': '',
-            },
-          }],
+          [/@symbols/, { cases: { '@operators': 'operator', '@default': '' } }],
           [/\d+(\.\d+)?/, 'number'],
           [/"([^"\\]|\\.)*$/, 'string.invalid'],
           [/"/, 'string', '@string'],
@@ -77,13 +74,16 @@ export default function CodeEditor() {
       },
     });
 
-    // Arduino completions
+    // Completions
     monaco.languages.registerCompletionItemProvider('arduino', {
-      provideCompletionItems: (model: any, position: any) => {
+      provideCompletionItems: (_model: any, position: any) => {
         const suggestions = [
           'pinMode', 'digitalWrite', 'digitalRead', 'analogWrite', 'analogRead',
           'delay', 'millis', 'Serial.begin', 'Serial.print', 'Serial.println',
           'setup', 'loop', 'HIGH', 'LOW', 'INPUT', 'OUTPUT',
+          'Wire.begin', 'Wire.beginTransmission', 'Wire.write', 'Wire.endTransmission',
+          'SPI.begin', 'SPI.transfer',
+          'Servo', 'attach', 'write',
         ].map(label => ({
           label,
           kind: monaco.languages.CompletionItemKind.Function,
@@ -100,7 +100,7 @@ export default function CodeEditor() {
       },
     });
 
-    // Define custom theme
+    // Theme
     monaco.editor.defineTheme('circuitforge-dark', {
       base: 'vs-dark',
       inherit: true,
@@ -128,11 +128,81 @@ export default function CodeEditor() {
     });
 
     monaco.editor.setTheme('circuitforge-dark');
+
+    // Click in gutter to toggle breakpoints
+    editor.onMouseDown((e: any) => {
+      if (e.target?.type === 2 || e.target?.type === 3) {
+        // gutter click (line numbers or glyph margin)
+        const lineNumber = e.target.position?.lineNumber;
+        if (lineNumber) {
+          toggleBreakpoint(lineNumber);
+        }
+      }
+    });
+
     editor.focus();
-  }, []);
+  }, [toggleBreakpoint]);
+
+  // Update decorations for breakpoints and execution line
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    const decorations: any[] = [];
+
+    // Breakpoints
+    for (const bp of breakpoints) {
+      if (!bp.enabled) continue;
+      decorations.push({
+        range: new monaco.Range(bp.line, 1, bp.line, 1),
+        options: {
+          isWholeLine: true,
+          glyphMarginClassName: 'breakpoint-glyph',
+          className: 'breakpoint-line',
+          glyphMarginHoverMessage: { value: 'Breakpoint' },
+        },
+      });
+    }
+
+    // Execution line
+    if (currentExecutionLine > 0) {
+      decorations.push({
+        range: new monaco.Range(currentExecutionLine, 1, currentExecutionLine, 1),
+        options: {
+          isWholeLine: true,
+          className: 'execution-line',
+          glyphMarginClassName: 'execution-glyph',
+        },
+      });
+    }
+
+    decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations);
+  }, [breakpoints, currentExecutionLine]);
 
   return (
     <div className="h-full w-full overflow-hidden">
+      <style>{`
+        .breakpoint-glyph {
+          background: #e51400;
+          border-radius: 50%;
+          width: 10px !important;
+          height: 10px !important;
+          margin-left: 5px;
+          margin-top: 4px;
+        }
+        .breakpoint-line {
+          background: rgba(229, 20, 0, 0.1) !important;
+        }
+        .execution-line {
+          background: rgba(255, 255, 0, 0.12) !important;
+          border-left: 2px solid #ffcc00 !important;
+        }
+        .execution-glyph {
+          border-left: 6px solid #ffcc00;
+          margin-left: 3px;
+        }
+      `}</style>
       <Editor
         height="100%"
         language="arduino"
@@ -156,6 +226,7 @@ export default function CodeEditor() {
           cursorSmoothCaretAnimation: 'on',
           smoothScrolling: true,
           padding: { top: 8 },
+          glyphMargin: true,
         }}
       />
     </div>

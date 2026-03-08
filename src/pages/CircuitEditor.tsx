@@ -7,14 +7,16 @@ import BottomPanel from '@/components/circuit/BottomPanel';
 import AgentPanel from '@/components/circuit/AgentPanel';
 import IoTPanel from '@/components/circuit/IoTPanel';
 import NetlistPanel from '@/components/circuit/NetlistPanel';
-import { Cpu, Zap, Bot, Radio, Activity } from 'lucide-react';
+import ExportPanel from '@/components/circuit/ExportPanel';
+import { Cpu, Zap, Bot, Radio, Activity, Download } from 'lucide-react';
 import { useSimulationStore } from '@/store/simulationStore';
 
 const CircuitEditor = () => {
-  const { isRunning, isPaused } = useSimulationStore();
+  const { isRunning, isPaused, runtimeMode } = useSimulationStore();
   const [showAgent, setShowAgent] = useState(false);
   const [showIoT, setShowIoT] = useState(false);
   const [showNetlist, setShowNetlist] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
@@ -29,8 +31,14 @@ const CircuitEditor = () => {
           </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
-        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v4.0</span>
-        
+        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v5.0</span>
+
+        {runtimeMode === 'avr8js' && (
+          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
+            AVR8js
+          </span>
+        )}
+
         {isRunning && (
           <div className="flex items-center gap-1.5 text-[10px] font-mono">
             <Zap className="w-3 h-3 text-success animate-pulse" />
@@ -43,6 +51,15 @@ const CircuitEditor = () => {
         <div className="flex-1" />
 
         {/* Panel toggles */}
+        <button
+          onClick={() => setShowExport(!showExport)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+            showExport ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+        >
+          <Download className="w-3 h-3" />
+          Export
+        </button>
         <button
           onClick={() => setShowNetlist(!showNetlist)}
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
@@ -71,7 +88,7 @@ const CircuitEditor = () => {
           Agent
         </button>
 
-        <span className="text-[10px] text-muted-foreground ml-2">Phase 4 — Simulation Engine</span>
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 5 — Debug & Export</span>
       </div>
 
       {/* Toolbar */}
@@ -83,6 +100,7 @@ const CircuitEditor = () => {
         <CircuitCanvas />
         <PropertiesPanel />
         {showNetlist && <NetlistPanel onClose={() => setShowNetlist(false)} />}
+        {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
         {showIoT && <IoTPanel onClose={() => setShowIoT(false)} />}
         {showAgent && <AgentPanel onClose={() => setShowAgent(false)} />}
       </div>
