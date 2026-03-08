@@ -18,8 +18,8 @@ export default function AgentConsole({ steps }: AgentConsoleProps) {
   if (steps.length === 0) return null;
 
   return (
-    <div className="border border-border/40 rounded-md bg-[#0d1117] overflow-hidden mt-2">
-      <div className="flex items-center gap-1.5 px-2 py-1 bg-[#161b22] border-b border-border/30">
+    <div className="border border-border/40 rounded-md bg-background overflow-hidden mt-2">
+      <div className="flex items-center gap-1.5 px-2 py-1 bg-muted border-b border-border/30">
         <Wrench className="w-3 h-3 text-accent" />
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Agent Actions</span>
         <span className="text-[9px] font-mono text-accent/60 ml-auto">{steps.length} step{steps.length !== 1 ? 's' : ''}</span>
