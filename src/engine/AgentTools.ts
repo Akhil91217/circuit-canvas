@@ -138,7 +138,7 @@ export function executeAgentTool(tool: string, args: Record<string, unknown>): s
       const { components, wires } = circuitStore;
       const analysis = engine.buildFromCircuit(components, wires);
       if (analysis.errors.length === 0) {
-        return `✅ No netlist errors. ${analysis.nets.length} nets, ${analysis.connectedComponents} connected components.`;
+        return `✅ No netlist errors. ${analysis.nets.length} nets, ${analysis.stats.totalConnections} connections.`;
       }
       return `⚠️ Found ${analysis.errors.length} issue(s):\n${analysis.errors.map(e => `• ${e.message}`).join('\n')}`;
     }
