@@ -5,35 +5,107 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are CircuitForge AI — an expert embedded systems assistant integrated into a visual circuit simulator.
+const AGENT_TOOLS_SCHEMA = [
+  {
+    type: "function",
+    function: {
+      name: "addComponent",
+      description: "Add an electronic component to the circuit canvas",
+      parameters: {
+        type: "object",
+        properties: {
+          type: { type: "string", description: "Component type ID: arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, lcd-16x2, oled-display, 7-segment, led-matrix, keypad, rtc-module, sd-card, motor-driver" },
+          x: { type: "number", description: "X position on canvas" },
+          y: { type: "number", description: "Y position on canvas" },
+        },
+        required: ["type"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "removeComponent",
+      description: "Remove a component from the canvas by ID",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Component instance ID" },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "connectPins",
+      description: "Create a wire between two component pins",
+      parameters: {
+        type: "object",
+        properties: {
+          fromComponent: { type: "string", description: "Source component type or instance ID" },
+          fromPin: { type: "string", description: "Source pin ID" },
+          toComponent: { type: "string", description: "Target component type or instance ID" },
+          toPin: { type: "string", description: "Target pin ID" },
+        },
+        required: ["fromComponent", "fromPin", "toComponent", "toPin"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generateArduinoCode",
+      description: "Set Arduino code in the editor",
+      parameters: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "Complete Arduino C++ source code" },
+        },
+        required: ["code"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "runSimulation",
+      description: "Start the circuit simulation",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "fixNetlistErrors",
+      description: "Analyze circuit connections and report/fix netlist errors",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+];
 
-You help users:
-1. Generate Arduino/ESP32 code
-2. Design circuits with component placement
-3. Debug hardware connections and code issues
-4. Explain electronic concepts
+const SYSTEM_PROMPT = `You are CircuitForge AI Agent — an autonomous embedded systems assistant inside a visual circuit simulator.
 
-When generating circuits, respond with a JSON block wrapped in \`\`\`circuit-json tags:
-\`\`\`circuit-json
-{
-  "components": [
-    { "type": "arduino-uno", "x": 200, "y": 100 },
-    { "type": "led", "x": 400, "y": 150 },
-    { "type": "resistor", "x": 350, "y": 150 }
-  ],
-  "wires": [
-    { "from": { "component": 0, "pin": "d13" }, "to": { "component": 2, "pin": "terminal1" } },
-    { "from": { "component": 2, "pin": "terminal2" }, "to": { "component": 1, "pin": "anode" } },
-    { "from": { "component": 1, "pin": "cathode" }, "to": { "component": 0, "pin": "gnd1" } }
-  ]
-}
-\`\`\`
+You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions. Do NOT just describe what to do — actually do it by calling the tools.
 
-When generating code, use \`\`\`arduino tags.
+WORKFLOW for building circuits:
+1. Add components using addComponent (space them out: x=200-800, y=100-500)
+2. Connect pins using connectPins (use component type names for fromComponent/toComponent)
+3. Generate Arduino code using generateArduinoCode
+4. Start simulation using runSimulation
 
-Available component types: arduino-uno, esp32, led, resistor, push-button, breadboard, ultrasonic-sensor, potentiometer, lcd-16x2, temperature-sensor, buzzer, servo-motor.
+IMPORTANT RULES:
+- Always add components before trying to connect them
+- Space components apart (at least 150px between each)
+- Use correct pin IDs from the component definitions
+- For Arduino Uno digital pins: d0-d13, analog: a0-a5, power: 5v, 3v3, gnd1, gnd2, vin
+- For ESP32: gpio0-gpio25, adc0-adc5, 3v3, gnd1, gnd2, vin
+- For LED: anode, cathode
+- For resistor: terminal1, terminal2
+- Include a brief explanation with each step
 
-Keep explanations concise but thorough. Always include both code AND circuit layout when asked to create a project.`;
+Available component types: arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, lcd-16x2, oled-display, 7-segment, led-matrix, keypad, rtc-module, sd-card, motor-driver`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -41,10 +113,22 @@ serve(async (req) => {
   }
 
   try {
-    const { messages } = await req.json();
+    const { messages, useTools } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const body: Record<string, unknown> = {
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...messages,
+      ],
+      stream: !useTools,
+    };
+
+    if (useTools) {
+      body.tools = AGENT_TOOLS_SCHEMA;
+      body.tool_choice = "auto";
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -53,45 +137,43 @@ serve(async (req) => {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages,
-        ],
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits in Settings → Workspace → Usage." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const text = await response.text();
       console.error("AI gateway error:", response.status, text);
       return new Response(JSON.stringify({ error: "AI service error" }), {
-        status: 500,
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (useTools) {
+      // Non-streaming: return full JSON for tool-call parsing
+      const data = await response.json();
+      return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Streaming response
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {
     console.error("circuit-ai-chat error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

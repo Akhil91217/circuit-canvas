@@ -1,7 +1,9 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { Stage, Layer, Rect, Line, Circle, Group, Text } from 'react-konva';
 import { useCircuitStore } from '@/store/circuitStore';
+import { useSimulationStore } from '@/store/simulationStore';
 import { COMPONENT_DEFINITIONS } from '@/data/componentDefinitions';
+import { COMPONENT_RENDERERS, GenericRenderer } from '@/components/circuit/ComponentRenderers';
 import { PinDefinition } from '@/types/circuit';
 import Konva from 'konva';
 
@@ -98,6 +100,7 @@ function CircuitComponentView({
   y,
   rotation,
   isSelected,
+  properties,
 }: {
   id: string;
   type: string;
@@ -105,22 +108,14 @@ function CircuitComponentView({
   y: number;
   rotation: number;
   isSelected: boolean;
+  properties: Record<string, string | number | boolean>;
 }) {
   const { selectComponent, moveComponent, pushHistory } = useCircuitStore();
+  const { pinStates, isRunning } = useSimulationStore();
   const def = COMPONENT_DEFINITIONS[type];
   if (!def) return null;
 
-  const bodyColor = type === 'arduino-uno' ? '#0d7377' :
-    type === 'led' ? '#dc2626' :
-    type === 'resistor' ? '#d4a574' :
-    type === 'push-button' ? '#6366f1' :
-    type === 'breadboard' ? '#f5f5dc' :
-    type === 'ultrasonic-sensor' ? '#06b6d4' :
-    type === 'potentiometer' ? '#3b82f6' :
-    type === 'lcd-16x2' ? '#166534' :
-    '#2d3748';
-
-  const textColor = type === 'breadboard' ? '#333' : '#e2e8f0';
+  const Renderer = COMPONENT_RENDERERS[type] || GenericRenderer;
 
   return (
     <Group
@@ -151,70 +146,8 @@ function CircuitComponentView({
         />
       )}
 
-      {/* Component body */}
-      <Rect
-        x={0}
-        y={0}
-        width={def.width}
-        height={def.height}
-        fill={bodyColor}
-        cornerRadius={4}
-        shadowColor="black"
-        shadowBlur={8}
-        shadowOpacity={0.4}
-        shadowOffsetY={2}
-      />
-
-      {/* Component label */}
-      <Text
-        x={4}
-        y={def.height / 2 - 6}
-        text={def.name}
-        fontSize={type === 'arduino-uno' || type === 'lcd-16x2' ? 11 : 9}
-        fill={textColor}
-        fontFamily="Space Grotesk"
-        width={def.width - 8}
-        align="center"
-      />
-
-      {/* Component-specific visuals */}
-      {type === 'led' && (
-        <Circle
-          x={def.width / 2}
-          y={18}
-          radius={8}
-          fill="#ff4444"
-          opacity={0.8}
-          shadowColor="#ff4444"
-          shadowBlur={12}
-          shadowOpacity={0.6}
-        />
-      )}
-
-      {type === 'arduino-uno' && (
-        <>
-          <Rect x={50} y={4} width={40} height={10} fill="#333" cornerRadius={2} />
-          <Text x={52} y={5} text="USB" fontSize={7} fill="#888" fontFamily="JetBrains Mono" />
-          <Rect x={10} y={180} width={30} height={14} fill="#1a1a2e" cornerRadius={2} />
-          <Text x={12} y={183} text="PWR" fontSize={6} fill="#22c55e" fontFamily="JetBrains Mono" />
-        </>
-      )}
-
-      {type === 'lcd-16x2' && (
-        <Rect x={10} y={12} width={140} height={40} fill="#3b7a2e" cornerRadius={2} />
-      )}
-
-      {type === 'resistor' && (
-        <>
-          {[12, 20, 28, 36].map((rx, i) => (
-            <Rect key={i} x={rx} y={4} width={4} height={16} fill={['#a0522d', '#ff0000', '#ff8c00', '#ffd700'][i]} cornerRadius={1} />
-          ))}
-        </>
-      )}
-
-      {type === 'potentiometer' && (
-        <Circle x={22} y={20} radius={10} fill="#1e40af" stroke="#60a5fa" strokeWidth={1.5} />
-      )}
+      {/* Realistic component renderer */}
+      <Renderer def={def} properties={properties} isSimulating={isRunning} pinStates={pinStates} />
 
       {/* Pins */}
       {def.pins.map(pin => (
@@ -333,7 +266,6 @@ export default function CircuitCanvas() {
     return () => window.removeEventListener('keydown', handler);
   }, [selectedIds, clearSelection, cancelWire, removeComponents]);
 
-  // Get pin absolute positions for wires
   const getPinPosition = useCallback((componentId: string, pinId: string) => {
     const comp = components.find(c => c.id === componentId);
     if (!comp) return { x: 0, y: 0 };
@@ -344,7 +276,6 @@ export default function CircuitCanvas() {
     return { x: comp.x + pin.offsetX, y: comp.y + pin.offsetY };
   }, [components]);
 
-  // Handle drop from sidebar
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const type = e.dataTransfer.getData('component-type');
@@ -424,6 +355,7 @@ export default function CircuitCanvas() {
               y={comp.y}
               rotation={comp.rotation}
               isSelected={selectedIds.includes(comp.id)}
+              properties={comp.properties}
             />
           ))}
         </Layer>
