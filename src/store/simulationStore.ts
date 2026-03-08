@@ -119,6 +119,13 @@ export const useSimulationStore = create<SimulationState>((set) => ({
     'ultrasonic-distance': 100,
     'potentiometer-value': 512,
     'temperature': 25,
+    'humidity': 50,
+    'humidity-temp': 25,
+    'light-lux': 500,
+    'accel-x': 0,
+    'accel-y': 0,
+    'accel-z': 9.8,
+    'servo-angle': 90,
   },
   setSensorValue: (key, value) => set((s) => ({ sensorValues: { ...s.sensorValues, [key]: value } })),
 }));
