@@ -74,7 +74,12 @@ function findComponentByTypeOrId(typeOrId: string): string | null {
   return byType?.id ?? null;
 }
 
-export function executeAgentTool(tool: string, args: Record<string, unknown>): string {
+export function executeAgentTool(tool: string, rawArgs: Record<string, unknown>): string {
+  // Some models wrap args inside a "properties" key — unwrap if needed
+  const args: Record<string, unknown> = (rawArgs.properties && typeof rawArgs.properties === 'object' && !Array.isArray(rawArgs.properties))
+    ? (rawArgs.properties as Record<string, unknown>)
+    : rawArgs;
+
   const circuitStore = useCircuitStore.getState();
   const simStore = useSimulationStore.getState();
 
