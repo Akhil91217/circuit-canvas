@@ -3,6 +3,8 @@ import { useSimulationStore } from '@/store/simulationStore';
 import { COMPONENT_DEFINITIONS } from '@/data/componentDefinitions';
 import { PROJECT_TEMPLATES } from '@/data/projectTemplates';
 import { NetlistEngine } from '@/engine/NetlistEngine';
+import { installLibrary, removeLibrary, searchLibraries, getInstalledLibraries } from '@/components/circuit/LibraryManager';
+import { installPlugin, removePlugin, searchPlugins, getInstalledPlugins } from '@/components/circuit/PluginManager';
 
 export interface AgentStep {
   id: string;
