@@ -147,8 +147,9 @@ const QUICK_PROMPTS = [
   { icon: '💡', text: 'Build an LED blink circuit with Arduino' },
   { icon: '🌤️', text: 'Build an ESP32 weather station with BME280 and OLED display' },
   { icon: '🤖', text: 'Build a robot car with ultrasonic obstacle avoidance' },
-  { icon: '🔒', text: 'Build a security alarm with PIR sensor and keypad' },
+  { icon: '🔍', text: 'Analyze my circuit for issues and suggestions' },
   { icon: '📡', text: 'Build an IoT sensor node with ESP32, BME280, and MQTT' },
+  { icon: '🌿', text: 'Create a smart greenhouse system' },
 ];
 
 function generateStepId() {
