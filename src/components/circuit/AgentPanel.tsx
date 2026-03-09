@@ -20,7 +20,7 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 const ALL_COMPONENT_TYPES = Object.keys(COMPONENT_DEFINITIONS).join(', ');
 
-const SYSTEM_PROMPT = `You are CircuitForge AI Agent v7 — an autonomous embedded systems engineering assistant inside a visual circuit simulator.
+const SYSTEM_PROMPT = `You are CircuitForge AI Agent v9 — an autonomous embedded systems engineering assistant inside a visual circuit simulator.
 You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions.
 
 WORKFLOW for building circuits:
@@ -82,6 +82,8 @@ const GEMINI_TOOLS = [
       { name: "getCircuitState", description: "Get current components and connections", parameters: { type: "object", properties: {} } },
       { name: "clearCircuit", description: "Clear the entire circuit", parameters: { type: "object", properties: {} } },
       { name: "compileCode", description: "Compile code and check for errors", parameters: { type: "object", properties: { board: { type: "string", description: "uno or esp32" } } } },
+      { name: "aiCircuitAnalysis", description: "Run AI analysis on circuit: detects wiring issues, power problems, missing components, suggests optimizations", parameters: { type: "object", properties: {} } },
+      { name: "createDashboard", description: "Generate dashboard widget configuration based on circuit sensors", parameters: { type: "object", properties: {} } },
     ],
   },
 ];
@@ -92,7 +94,7 @@ async function callGeminiDirect(messages: Array<{role: string; content: string}>
   const memoryContext = getMemoryContext();
   const geminiMessages = [
     { role: "user", parts: [{ text: SYSTEM_PROMPT + memoryContext }] },
-    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v8, ready to autonomously build circuits, generate code, compile, and debug." }] },
+    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v9, ready to autonomously build circuits, generate code, compile, debug, and analyze circuits." }] },
     ...messages.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
@@ -145,8 +147,9 @@ const QUICK_PROMPTS = [
   { icon: '💡', text: 'Build an LED blink circuit with Arduino' },
   { icon: '🌤️', text: 'Build an ESP32 weather station with BME280 and OLED display' },
   { icon: '🤖', text: 'Build a robot car with ultrasonic obstacle avoidance' },
-  { icon: '🔒', text: 'Build a security alarm with PIR sensor and keypad' },
+  { icon: '🔍', text: 'Analyze my circuit for issues and suggestions' },
   { icon: '📡', text: 'Build an IoT sensor node with ESP32, BME280, and MQTT' },
+  { icon: '🌿', text: 'Create a smart greenhouse system' },
 ];
 
 function generateStepId() {
@@ -364,7 +367,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
             <Sparkles className="w-2 h-2 text-warning absolute -top-0.5 -right-0.5" />
           </div>
           <span className="text-xs font-semibold text-foreground">AI Agent</span>
-          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v7</span>
+          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v9</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -427,8 +430,8 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
               <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-2">
                 <Zap className="w-5 h-5 text-accent" />
               </div>
-              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent v7</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Autonomous circuit builder with 40+ components, templates, and multi-file projects.</p>
+              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent v9</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Autonomous circuit builder with AI analysis, 40+ components, sharing, and multi-file projects.</p>
             </div>
             <div className="space-y-1.5">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Try these</p>
