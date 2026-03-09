@@ -94,7 +94,7 @@ async function callGeminiDirect(messages: Array<{role: string; content: string}>
   const memoryContext = getMemoryContext();
   const geminiMessages = [
     { role: "user", parts: [{ text: SYSTEM_PROMPT + memoryContext }] },
-    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v8, ready to autonomously build circuits, generate code, compile, and debug." }] },
+    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v9, ready to autonomously build circuits, generate code, compile, debug, and analyze circuits." }] },
     ...messages.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
