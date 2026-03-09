@@ -1,13 +1,15 @@
 import { useRef, useCallback } from 'react';
-import { Play, Pause, Square, RotateCcw, Code2, Terminal, Activity as WaveIcon, Eye } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Code2, Terminal, Activity as WaveIcon, Eye, BarChart3 } from 'lucide-react';
 import MultiFileEditor from './MultiFileEditor';
 import SerialMonitor from './SerialMonitor';
 import WaveformViewer from './WaveformViewer';
 import VariableInspector from './VariableInspector';
 import SimulationControls from './SimulationControls';
 import DebugControls from './DebugControls';
+import CompileButton from './CompileButton';
 import { useSimulationStore } from '@/store/simulationStore';
 import { ArduinoRuntime } from '@/engine/ArduinoRuntime';
+import { eventBus } from '@/engine/EventBus';
 
 export default function BottomPanel() {
   const {
@@ -27,18 +29,16 @@ export default function BottomPanel() {
         onSerialOutput: (msg) => addSerialMessage(msg),
         onPinChange: (change) => {
           setPinState(change.pin, change.value);
-          addWaveformSample({
-            pin: change.pin,
-            value: change.value,
-            time: Date.now(),
-            mode: change.mode,
-          });
+          addWaveformSample({ pin: change.pin, value: change.value, time: Date.now(), mode: change.mode });
+          eventBus.emit('pin:change', change);
         },
-        onError: (error) => addError(error),
+        onError: (error) => {
+          addError(error);
+          eventBus.emit('simulation:error', { error });
+        },
         onStateChange: (state) => {
           setRunning(state.running);
           setPaused(state.paused);
-          // Update variable inspector
           const vars: Record<string, { value: string | number | boolean; type: string }> = {};
           for (const [k, v] of Object.entries(state.variables)) {
             vars[k] = {
@@ -48,14 +48,10 @@ export default function BottomPanel() {
           }
           setRuntimeVariables(vars);
         },
-        onLineChange: (line) => {
-          setCurrentExecutionLine(line);
-        },
+        onLineChange: (line) => setCurrentExecutionLine(line),
         onBusMessage: (msg) => {
-          addSerialMessage({
-            timestamp: msg.timestamp,
-            text: `[${msg.bus}] ${msg.direction}: [${msg.data.join(', ')}]\n`,
-          });
+          addSerialMessage({ timestamp: msg.timestamp, text: `[${msg.bus}] ${msg.direction}: [${msg.data.join(', ')}]\n` });
+          eventBus.emit(`bus:${msg.bus.toLowerCase()}` as any, msg);
         },
       });
     }
@@ -64,37 +60,29 @@ export default function BottomPanel() {
 
   const handleRun = useCallback(() => {
     const rt = getRuntime();
-    clearSerial();
-    clearErrors();
-    resetPinStates();
-    clearWaveform();
-    setCurrentExecutionLine(-1);
+    clearSerial(); clearErrors(); resetPinStates(); clearWaveform(); setCurrentExecutionLine(-1);
     rt.setSpeed(speed);
+    eventBus.emit('simulation:start', { code: code.slice(0, 50) });
     rt.run(code);
   }, [code, speed, getRuntime, clearSerial, clearErrors, resetPinStates, clearWaveform, setCurrentExecutionLine]);
 
   const handlePause = useCallback(() => {
     const rt = getRuntime();
-    if (isPaused) rt.resume(); else rt.pause();
+    if (isPaused) { rt.resume(); eventBus.emit('simulation:start', {}); }
+    else { rt.pause(); eventBus.emit('simulation:pause', {}); }
   }, [isPaused, getRuntime]);
 
   const handleStop = useCallback(() => {
     const rt = getRuntime();
     rt.stop();
-    resetPinStates();
-    setCurrentExecutionLine(-1);
-    setRuntimeVariables({});
+    resetPinStates(); setCurrentExecutionLine(-1); setRuntimeVariables({});
+    eventBus.emit('simulation:stop', {});
   }, [getRuntime, resetPinStates, setCurrentExecutionLine, setRuntimeVariables]);
 
   const handleReset = useCallback(() => {
     const rt = getRuntime();
     rt.reset();
-    clearSerial();
-    clearErrors();
-    resetPinStates();
-    clearWaveform();
-    setCurrentExecutionLine(-1);
-    setRuntimeVariables({});
+    clearSerial(); clearErrors(); resetPinStates(); clearWaveform(); setCurrentExecutionLine(-1); setRuntimeVariables({});
   }, [getRuntime, clearSerial, clearErrors, resetPinStates, clearWaveform, setCurrentExecutionLine, setRuntimeVariables]);
 
   const prevSpeed = useRef(speed);
@@ -132,12 +120,17 @@ export default function BottomPanel() {
 
         <div className="w-px h-5 bg-border/50 mx-1" />
 
-        {/* Debug controls */}
+        {/* Compile */}
+        <div className="relative">
+          <CompileButton />
+        </div>
+
+        <div className="w-px h-5 bg-border/50 mx-1" />
+
         <DebugControls />
 
         <div className="w-px h-5 bg-border/50 mx-1" />
 
-        {/* Tabs */}
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveBottomTab(tab.id)}
             className={`flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
