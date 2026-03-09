@@ -81,6 +81,7 @@ const GEMINI_TOOLS = [
       { name: "loadTemplate", description: "Load a project template", parameters: { type: "object", properties: { templateId: { type: "string", description: "Template: weather-station, smart-home-sensor, robot-car, iot-dashboard, security-alarm" } }, required: ["templateId"] } },
       { name: "getCircuitState", description: "Get current components and connections", parameters: { type: "object", properties: {} } },
       { name: "clearCircuit", description: "Clear the entire circuit", parameters: { type: "object", properties: {} } },
+      { name: "compileCode", description: "Compile code and check for errors", parameters: { type: "object", properties: { board: { type: "string", description: "uno or esp32" } } } },
     ],
   },
 ];
@@ -91,7 +92,7 @@ async function callGeminiDirect(messages: Array<{role: string; content: string}>
   const memoryContext = getMemoryContext();
   const geminiMessages = [
     { role: "user", parts: [{ text: SYSTEM_PROMPT + memoryContext }] },
-    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v7, ready to autonomously build circuits, generate code, and debug." }] },
+    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v8, ready to autonomously build circuits, generate code, compile, and debug." }] },
     ...messages.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],

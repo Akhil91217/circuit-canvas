@@ -6,15 +6,17 @@ import Toolbar from '@/components/circuit/Toolbar';
 import BottomPanel from '@/components/circuit/BottomPanel';
 import AgentPanel from '@/components/circuit/AgentPanel';
 import IoTPanel from '@/components/circuit/IoTPanel';
+import IoTDashboard from '@/components/circuit/IoTDashboard';
 import NetlistPanel from '@/components/circuit/NetlistPanel';
 import ExportPanel from '@/components/circuit/ExportPanel';
-import { Cpu, Zap, Bot, Radio, Activity, Download } from 'lucide-react';
+import { Cpu, Zap, Bot, Radio, Activity, Download, BarChart3 } from 'lucide-react';
 import { useSimulationStore } from '@/store/simulationStore';
 
 const CircuitEditor = () => {
   const { isRunning, isPaused, runtimeMode } = useSimulationStore();
   const [showAgent, setShowAgent] = useState(false);
   const [showIoT, setShowIoT] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [showNetlist, setShowNetlist] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
@@ -31,7 +33,7 @@ const CircuitEditor = () => {
           </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
-        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v7.0</span>
+        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v8.0</span>
 
         {runtimeMode === 'avr8js' && (
           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
@@ -55,6 +57,7 @@ const CircuitEditor = () => {
           { key: 'export', show: showExport, set: setShowExport, icon: <Download className="w-3 h-3" />, label: 'Export' },
           { key: 'netlist', show: showNetlist, set: setShowNetlist, icon: <Activity className="w-3 h-3" />, label: 'Netlist' },
           { key: 'iot', show: showIoT, set: setShowIoT, icon: <Radio className="w-3 h-3" />, label: 'IoT' },
+          { key: 'dashboard', show: showDashboard, set: setShowDashboard, icon: <BarChart3 className="w-3 h-3" />, label: 'Dashboard' },
           { key: 'agent', show: showAgent, set: setShowAgent, icon: <Bot className="w-3 h-3" />, label: 'Agent' },
         ].map(btn => (
           <button
@@ -69,7 +72,7 @@ const CircuitEditor = () => {
           </button>
         ))}
 
-        <span className="text-[10px] text-muted-foreground ml-2">Phase 7 — Autonomous Agent & 40+ Components</span>
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 8 — Event Engine & IoT Dashboard</span>
       </div>
 
       {/* Toolbar */}
@@ -83,6 +86,7 @@ const CircuitEditor = () => {
         {showNetlist && <NetlistPanel onClose={() => setShowNetlist(false)} />}
         {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
         {showIoT && <IoTPanel onClose={() => setShowIoT(false)} />}
+        {showDashboard && <IoTDashboard onClose={() => setShowDashboard(false)} />}
         {showAgent && <AgentPanel onClose={() => setShowAgent(false)} />}
       </div>
 
