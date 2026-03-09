@@ -82,6 +82,8 @@ const GEMINI_TOOLS = [
       { name: "getCircuitState", description: "Get current components and connections", parameters: { type: "object", properties: {} } },
       { name: "clearCircuit", description: "Clear the entire circuit", parameters: { type: "object", properties: {} } },
       { name: "compileCode", description: "Compile code and check for errors", parameters: { type: "object", properties: { board: { type: "string", description: "uno or esp32" } } } },
+      { name: "aiCircuitAnalysis", description: "Run AI analysis on circuit: detects wiring issues, power problems, missing components, suggests optimizations", parameters: { type: "object", properties: {} } },
+      { name: "createDashboard", description: "Generate dashboard widget configuration based on circuit sensors", parameters: { type: "object", properties: {} } },
     ],
   },
 ];
