@@ -31,7 +31,7 @@ const CircuitEditor = () => {
           </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
-        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v6.0</span>
+        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v7.0</span>
 
         {runtimeMode === 'avr8js' && (
           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
@@ -69,7 +69,7 @@ const CircuitEditor = () => {
           </button>
         ))}
 
-        <span className="text-[10px] text-muted-foreground ml-2">Phase 6 — AI Agent & Rendering</span>
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 7 — Autonomous Agent & 40+ Components</span>
       </div>
 
       {/* Toolbar */}

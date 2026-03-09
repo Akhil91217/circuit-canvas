@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Bot, Send, Sparkles, X, Trash2, Loader2, Zap, Terminal } from 'lucide-react';
+import { Bot, Send, Sparkles, X, Trash2, Loader2, Zap, Terminal, LayoutTemplate } from 'lucide-react';
 import { useCircuitStore } from '@/store/circuitStore';
 import { useSimulationStore } from '@/store/simulationStore';
 import { COMPONENT_DEFINITIONS } from '@/data/componentDefinitions';
-import { AgentStep, executeAgentTool } from '@/engine/AgentTools';
+import { AgentStep, executeAgentTool, getMemoryContext } from '@/engine/AgentTools';
+import { PROJECT_TEMPLATES } from '@/data/projectTemplates';
 import AgentConsole from '@/components/circuit/AgentConsole';
 import ReactMarkdown from 'react-markdown';
 
@@ -17,22 +18,69 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const CHAT_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/circuit-ai-chat` : null;
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-const SYSTEM_PROMPT = `You are CircuitForge AI Agent — an autonomous embedded systems assistant inside a visual circuit simulator.
+const ALL_COMPONENT_TYPES = Object.keys(COMPONENT_DEFINITIONS).join(', ');
+
+const SYSTEM_PROMPT = `You are CircuitForge AI Agent v7 — an autonomous embedded systems engineering assistant inside a visual circuit simulator.
 You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions.
-WORKFLOW: 1. Add components using addComponent 2. Connect pins using connectPins 3. Generate Arduino code using generateArduinoCode 4. Start simulation using runSimulation
-IMPORTANT: Always add components before connecting them. Space components apart (150px+). Use correct pin IDs.
-Arduino Uno pins: d0-d13, a0-a5, 5v, 3v3, gnd1, gnd2, vin. LED: anode, cathode. Resistor: terminal1, terminal2.
-Available components: arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, lcd-16x2, oled-display, 7-segment, led-matrix, keypad, rtc-module, sd-card, motor-driver`;
+
+WORKFLOW for building circuits:
+1. Plan the circuit architecture (components needed, connections)
+2. Add components using addComponent (they auto-space, or specify x,y)
+3. Connect pins using connectPins (use component type names for fromComponent/toComponent)
+4. Generate Arduino/ESP32 code using generateArduinoCode
+5. Start simulation using runSimulation
+6. If errors occur, use analyzeCircuit and fixNetlistErrors to diagnose and fix
+
+MULTI-STEP PLANNING: For complex projects, break them into phases:
+- Phase 1: Add all components
+- Phase 2: Wire power and ground
+- Phase 3: Wire signal connections
+- Phase 4: Generate code
+- Phase 5: Test and fix
+
+IMPORTANT RULES:
+- Always add components BEFORE connecting them
+- Use correct pin IDs from component definitions
+- For Arduino Uno: d0-d13, a0-a5, 5v, 3v3, gnd1, gnd2, vin
+- For ESP32: gpio0-gpio25, adc0-adc5, 3v3, gnd1, gnd2, vin
+- For I2C devices: connect SDA to SDA, SCL to SCL (GPIO21/22 on ESP32, A4/A5 on Arduino)
+- For SPI devices: connect MOSI, MISO, SCK, CS pins
+- Always connect power (VCC) and ground (GND) for each module
+- Use analyzeCircuit to verify before running simulation
+- If simulation fails, use fixNetlistErrors then retry
+
+TEMPLATES: Use loadTemplate for quick starts: weather-station, smart-home-sensor, robot-car, iot-dashboard, security-alarm
+
+MULTI-FILE PROJECTS: Use generateMultiFileProject for complex code with headers and source files.
+
+Available component types: ${ALL_COMPONENT_TYPES}
+
+Pin reference for common components:
+- BME280/BMP280: vcc, gnd, sda, scl
+- PIR: vcc, signal, gnd
+- OLED: gnd, vcc, scl, sda
+- GPS/Bluetooth: vcc, gnd, tx, rx
+- Motor Driver: in1-in4, ena, enb, vcc, gnd
+- LoRa/NRF24L01: vcc, gnd, mosi, miso, sck, cs
+- Buzzer: positive, negative
+- LED: anode, cathode
+- Resistor: terminal1, terminal2`;
 
 const GEMINI_TOOLS = [
   {
     functionDeclarations: [
-      { name: "addComponent", description: "Add an electronic component to the circuit canvas", parameters: { type: "object", properties: { type: { type: "string", description: "Component type ID" }, x: { type: "number" }, y: { type: "number" } }, required: ["type"] } },
+      { name: "addComponent", description: "Add an electronic component to the circuit canvas", parameters: { type: "object", properties: { type: { type: "string", description: `Component type ID: ${ALL_COMPONENT_TYPES}` }, x: { type: "number" }, y: { type: "number" } }, required: ["type"] } },
       { name: "removeComponent", description: "Remove a component by ID", parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-      { name: "connectPins", description: "Wire two pins", parameters: { type: "object", properties: { fromComponent: { type: "string" }, fromPin: { type: "string" }, toComponent: { type: "string" }, toPin: { type: "string" } }, required: ["fromComponent", "fromPin", "toComponent", "toPin"] } },
-      { name: "generateArduinoCode", description: "Set Arduino code", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
+      { name: "connectPins", description: "Wire two pins together", parameters: { type: "object", properties: { fromComponent: { type: "string" }, fromPin: { type: "string" }, toComponent: { type: "string" }, toPin: { type: "string" } }, required: ["fromComponent", "fromPin", "toComponent", "toPin"] } },
+      { name: "generateArduinoCode", description: "Set Arduino code in the editor", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
+      { name: "generateMultiFileProject", description: "Generate multi-file Arduino project", parameters: { type: "object", properties: { files: { type: "string", description: "JSON array of {name, content} objects" } }, required: ["files"] } },
       { name: "runSimulation", description: "Start simulation", parameters: { type: "object", properties: {} } },
-      { name: "fixNetlistErrors", description: "Analyze and fix netlist errors", parameters: { type: "object", properties: {} } },
+      { name: "stopSimulation", description: "Stop simulation", parameters: { type: "object", properties: {} } },
+      { name: "analyzeCircuit", description: "Analyze current circuit state", parameters: { type: "object", properties: {} } },
+      { name: "fixNetlistErrors", description: "Find and report netlist errors", parameters: { type: "object", properties: {} } },
+      { name: "loadTemplate", description: "Load a project template", parameters: { type: "object", properties: { templateId: { type: "string", description: "Template: weather-station, smart-home-sensor, robot-car, iot-dashboard, security-alarm" } }, required: ["templateId"] } },
+      { name: "getCircuitState", description: "Get current components and connections", parameters: { type: "object", properties: {} } },
+      { name: "clearCircuit", description: "Clear the entire circuit", parameters: { type: "object", properties: {} } },
     ],
   },
 ];
@@ -40,9 +88,10 @@ const GEMINI_TOOLS = [
 async function callGeminiDirect(messages: Array<{role: string; content: string}>, useTools: boolean) {
   if (!GEMINI_API_KEY) throw new Error("No API key configured. Add VITE_GEMINI_API_KEY to your .env file for local development.");
   
+  const memoryContext = getMemoryContext();
   const geminiMessages = [
-    { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent ready to help." }] },
+    { role: "user", parts: [{ text: SYSTEM_PROMPT + memoryContext }] },
+    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v7, ready to autonomously build circuits, generate code, and debug." }] },
     ...messages.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
@@ -80,30 +129,23 @@ async function callGeminiDirect(messages: Array<{role: string; content: string}>
           tool_calls: toolCalls.map((p: any, i: number) => ({
             id: `call_${i}`,
             type: "function",
-            function: {
-              name: p.functionCall.name,
-              arguments: JSON.stringify(p.functionCall.args || {}),
-            },
+            function: { name: p.functionCall.name, arguments: JSON.stringify(p.functionCall.args || {}) },
           })),
         },
       }],
     };
   }
   return {
-    choices: [{
-      message: {
-        role: "assistant",
-        content: textParts.map((p: any) => p.text).join(""),
-      },
-    }],
+    choices: [{ message: { role: "assistant", content: textParts.map((p: any) => p.text).join("") } }],
   };
 }
 
 const QUICK_PROMPTS = [
   { icon: '💡', text: 'Build an LED blink circuit with Arduino' },
-  { icon: '🌡️', text: 'Build an ESP32 temperature monitor with OLED display' },
-  { icon: '📡', text: 'Create an ultrasonic distance sensor with LCD display' },
-  { icon: '🎛️', text: 'Build a servo motor controller with potentiometer' },
+  { icon: '🌤️', text: 'Build an ESP32 weather station with BME280 and OLED display' },
+  { icon: '🤖', text: 'Build a robot car with ultrasonic obstacle avoidance' },
+  { icon: '🔒', text: 'Build a security alarm with PIR sensor and keypad' },
+  { icon: '📡', text: 'Build an IoT sensor node with ESP32, BME280, and MQTT' },
 ];
 
 function generateStepId() {
@@ -115,6 +157,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [agentMode, setAgentMode] = useState(true);
+  const [showTemplates, setShowTemplates] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { setCode } = useSimulationStore();
 
@@ -137,7 +180,6 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
       };
       steps.push(step);
 
-      // Update UI with running step
       setMessages(prev => {
         const last = prev[prev.length - 1];
         if (last?.role === 'assistant') {
@@ -146,7 +188,6 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
         return [...prev, { role: 'assistant', content: '', agentSteps: [...steps] }];
       });
 
-      // Execute
       try {
         const result = executeAgentTool(step.tool, step.args);
         step.status = 'done';
@@ -156,7 +197,6 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
         step.result = `Error: ${e.message}`;
       }
 
-      // Small delay between steps for visual effect
       await new Promise(r => setTimeout(r, 300));
 
       setMessages(prev => {
@@ -179,13 +219,17 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
     setInput('');
     setIsLoading(true);
 
+    // Include memory context in the user message for better agent awareness
+    const memoryCtx = getMemoryContext();
     const allMessages = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
+    if (memoryCtx && agentMode) {
+      allMessages[allMessages.length - 1].content += memoryCtx;
+    }
 
     try {
       let data: any;
 
       if (CHAT_URL) {
-        // Use edge function (Lovable Cloud / self-hosted Supabase)
         const resp = await fetch(CHAT_URL, {
           method: 'POST',
           headers: {
@@ -203,7 +247,6 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
         if (agentMode) {
           data = await resp.json();
         } else {
-          // Streaming mode
           const reader = resp.body!.getReader();
           const decoder = new TextDecoder();
           let textBuffer = '';
@@ -247,20 +290,26 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
 
           const codeMatch = assistantSoFar.match(/```arduino\s*([\s\S]*?)```/);
           if (codeMatch) setCode(codeMatch[1].trim());
-          return; // streaming handled, exit early
+          return;
         }
       } else {
-        // Direct Gemini API call (local development without Supabase)
         data = await callGeminiDirect(allMessages, agentMode);
       }
 
-      // Process tool-call response (both paths produce same format)
       const choice = data.choices?.[0];
       const message = choice?.message;
 
       if (message?.tool_calls?.length > 0) {
         const steps = await executeToolCalls(message.tool_calls);
-        const summary = message.content || steps.map(s => s.result).filter(Boolean).join('\n');
+        
+        // Check for errors and auto-retry
+        const hasErrors = steps.some(s => s.status === 'error' || s.result?.includes('❌'));
+        let summary = message.content || steps.map(s => s.result).filter(Boolean).join('\n');
+        
+        if (hasErrors) {
+          summary += '\n\n🔄 Some actions had errors. Use "analyze and fix" to debug.';
+        }
+        
         setMessages(prev => {
           const last = prev[prev.length - 1];
           if (last?.role === 'assistant') {
@@ -287,6 +336,23 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleLoadTemplate = (templateId: string) => {
+    setShowTemplates(false);
+    const result = executeAgentTool('loadTemplate', { templateId });
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: result,
+      agentSteps: [{
+        id: generateStepId(),
+        tool: 'loadTemplate',
+        args: { templateId },
+        status: 'done',
+        result,
+        timestamp: Date.now(),
+      }],
+    }]);
+  };
+
   return (
     <div className="w-80 bg-sidebar border-l border-border/50 flex flex-col h-full animate-slide-in-right">
       {/* Header */}
@@ -297,9 +363,18 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
             <Sparkles className="w-2 h-2 text-warning absolute -top-0.5 -right-0.5" />
           </div>
           <span className="text-xs font-semibold text-foreground">AI Agent</span>
-          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v6</span>
+          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v7</span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowTemplates(!showTemplates)}
+            className={`p-1 rounded text-[9px] font-mono transition-colors ${
+              showTemplates ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            title="Project Templates"
+          >
+            <LayoutTemplate className="w-3 h-3" />
+          </button>
           <button
             onClick={() => setAgentMode(!agentMode)}
             className={`p-1 rounded text-[9px] font-mono transition-colors ${
@@ -321,9 +396,27 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
       {/* Mode indicator */}
       <div className="px-3 py-1 border-b border-border/30 bg-muted/20">
         <span className="text-[9px] font-mono text-muted-foreground">
-          {agentMode ? '🤖 Agent Mode — AI executes tools directly' : '💬 Chat Mode — Streaming responses'}
+          {agentMode ? '🤖 Agent Mode — Autonomous circuit builder' : '💬 Chat Mode — Streaming responses'}
         </span>
       </div>
+
+      {/* Templates panel */}
+      {showTemplates && (
+        <div className="border-b border-border/30 bg-muted/20 p-2 space-y-1 max-h-48 overflow-y-auto">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold px-1">Quick Start Templates</p>
+          {PROJECT_TEMPLATES.map(t => (
+            <button
+              key={t.id}
+              onClick={() => handleLoadTemplate(t.id)}
+              className="w-full text-left px-2 py-1.5 rounded bg-background hover:bg-muted border border-border/30 text-xs text-foreground transition-colors"
+            >
+              <span className="mr-1.5">{t.icon}</span>
+              <span className="font-medium">{t.name}</span>
+              <p className="text-[9px] text-muted-foreground mt-0.5 ml-5">{t.description}</p>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -333,8 +426,8 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
               <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-2">
                 <Zap className="w-5 h-5 text-accent" />
               </div>
-              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent</p>
-              <p className="text-[10px] text-muted-foreground mt-1">I can autonomously build circuits, write code, and run simulations.</p>
+              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent v7</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Autonomous circuit builder with 40+ components, templates, and multi-file projects.</p>
             </div>
             <div className="space-y-1.5">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Try these</p>
