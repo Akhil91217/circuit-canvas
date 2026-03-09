@@ -149,6 +149,13 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     description: 'Remove all components and wires from the canvas',
     parameters: {},
   },
+  {
+    name: 'compileCode',
+    description: 'Compile the current Arduino code and check for errors. Returns flash/RAM usage.',
+    parameters: {
+      board: { type: 'string', description: 'Target board: uno or esp32 (default: uno)' },
+    },
+  },
 ];
 
 function findComponentByTypeOrId(typeOrId: string): string | null {
