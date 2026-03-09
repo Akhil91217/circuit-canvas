@@ -14,7 +14,7 @@ import LibraryManager from '@/components/circuit/LibraryManager';
 import PluginManager from '@/components/circuit/PluginManager';
 import CommunityMarketplace from '@/components/circuit/CommunityMarketplace';
 import TemplateMarketplace from '@/components/circuit/TemplateMarketplace';
-import { Cpu, Zap, Bot, Radio, Activity, Download, BarChart3, Share2, Package, Puzzle, Globe, LayoutTemplate } from 'lucide-react';
+import { Zap, Bot, Radio, Activity, Download, BarChart3, Share2, Package, Puzzle, Globe, LayoutTemplate } from 'lucide-react';
 import { useSimulationStore } from '@/store/simulationStore';
 import { useCircuitStore } from '@/store/circuitStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -90,12 +90,6 @@ const CircuitEditor = () => {
       {/* Header */}
       <div className="h-11 bg-muted/30 border-b border-border/60 flex items-center px-4 gap-3 backdrop-blur-sm">
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Cpu className="w-5 h-5 text-accent" />
-            {isRunning && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            )}
-          </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
         <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v10.0</span>
