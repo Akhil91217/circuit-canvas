@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const ALL_COMPONENTS = "arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, rgb-led-strip, stepper-motor, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, bme280, bmp280, pir-sensor, mq2-sensor, soil-moisture, ir-receiver, hall-effect, lcd-16x2, oled-display, sh1106-oled, ili9341-tft, st7789-tft, lcd-20x4, 7-segment, led-matrix, keypad, rotary-encoder, joystick, capacitive-touch, fingerprint, lora-module, gps-module, bluetooth-module, nrf24l01, rtc-module, sd-card, motor-driver, uln2003, eeprom, buzzer-module";
+
 const AGENT_TOOLS_SCHEMA = [
   {
     type: "function",
@@ -14,7 +16,7 @@ const AGENT_TOOLS_SCHEMA = [
       parameters: {
         type: "object",
         properties: {
-          type: { type: "string", description: "Component type ID: arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, lcd-16x2, oled-display, 7-segment, led-matrix, keypad, rtc-module, sd-card, motor-driver" },
+          type: { type: "string", description: `Component type ID: ${ALL_COMPONENTS}` },
           x: { type: "number", description: "X position on canvas" },
           y: { type: "number", description: "Y position on canvas" },
         },
@@ -27,13 +29,7 @@ const AGENT_TOOLS_SCHEMA = [
     function: {
       name: "removeComponent",
       description: "Remove a component from the canvas by ID",
-      parameters: {
-        type: "object",
-        properties: {
-          id: { type: "string", description: "Component instance ID" },
-        },
-        required: ["id"],
-      },
+      parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
     },
   },
   {
@@ -58,12 +54,20 @@ const AGENT_TOOLS_SCHEMA = [
     function: {
       name: "generateArduinoCode",
       description: "Set Arduino code in the editor",
+      parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generateMultiFileProject",
+      description: "Generate a multi-file Arduino project with multiple source/header files",
       parameters: {
         type: "object",
         properties: {
-          code: { type: "string", description: "Complete Arduino C++ source code" },
+          files: { type: "string", description: 'JSON array of {name, content} objects' },
         },
-        required: ["code"],
+        required: ["files"],
       },
     },
   },
@@ -78,34 +82,86 @@ const AGENT_TOOLS_SCHEMA = [
   {
     type: "function",
     function: {
+      name: "stopSimulation",
+      description: "Stop the running simulation",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "analyzeCircuit",
+      description: "Get detailed analysis of current circuit: components, connections, issues",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "fixNetlistErrors",
       description: "Analyze circuit connections and report/fix netlist errors",
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "loadTemplate",
+      description: "Load a project template: weather-station, smart-home-sensor, robot-car, iot-dashboard, security-alarm",
+      parameters: { type: "object", properties: { templateId: { type: "string" } }, required: ["templateId"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getCircuitState",
+      description: "Get current components and connections on the canvas",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "clearCircuit",
+      description: "Remove all components and wires from the canvas",
+      parameters: { type: "object", properties: {} },
+    },
+  },
 ];
 
-const SYSTEM_PROMPT = `You are CircuitForge AI Agent — an autonomous embedded systems assistant inside a visual circuit simulator.
+const SYSTEM_PROMPT = `You are CircuitForge AI Agent v7 — an autonomous embedded systems engineering assistant inside a visual circuit simulator.
 
-You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions. Do NOT just describe what to do — actually do it by calling the tools.
+You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions. Do NOT just describe — actually DO it.
 
 WORKFLOW for building circuits:
-1. Add components using addComponent (space them out: x=200-800, y=100-500)
-2. Connect pins using connectPins (use component type names for fromComponent/toComponent)
-3. Generate Arduino code using generateArduinoCode
-4. Start simulation using runSimulation
+1. Plan the architecture (what components, how they connect)
+2. Add components using addComponent (auto-spaced or specify x,y)
+3. Connect power/ground first, then signal pins using connectPins
+4. Generate code using generateArduinoCode or generateMultiFileProject
+5. Run simulation using runSimulation
+6. If errors: analyzeCircuit → fixNetlistErrors → fix → retry
 
-IMPORTANT RULES:
-- Always add components before trying to connect them
-- Space components apart (at least 150px between each)
-- Use correct pin IDs from the component definitions
-- For Arduino Uno digital pins: d0-d13, analog: a0-a5, power: 5v, 3v3, gnd1, gnd2, vin
-- For ESP32: gpio0-gpio25, adc0-adc5, 3v3, gnd1, gnd2, vin
-- For LED: anode, cathode
-- For resistor: terminal1, terminal2
-- Include a brief explanation with each step
+MULTI-STEP PLANNING for complex projects:
+- Phase 1: Add all components
+- Phase 2: Wire power and ground
+- Phase 3: Wire signal connections (I2C, SPI, UART, GPIO)
+- Phase 4: Generate comprehensive code
+- Phase 5: Test and debug
 
-Available component types: arduino-uno, esp32, led, resistor, push-button, breadboard, buzzer, servo-motor, relay, ultrasonic-sensor, potentiometer, temperature-sensor, humidity-sensor, light-sensor, accelerometer, lcd-16x2, oled-display, 7-segment, led-matrix, keypad, rtc-module, sd-card, motor-driver`;
+PIN REFERENCE:
+- Arduino Uno: d0-d13, a0-a5, 5v, 3v3, gnd1, gnd2, vin
+- ESP32: gpio0-gpio25, adc0-adc5, 3v3, gnd1, gnd2, vin
+- I2C devices (BME280, OLED, RTC, EEPROM): vcc, gnd, sda, scl
+  → Arduino: SDA=A4, SCL=A5 | ESP32: SDA=GPIO21, SCL=GPIO22
+- SPI devices (TFT, LoRa, SD, NRF24L01): vcc, gnd, mosi, miso, sck, cs
+- UART devices (GPS, Bluetooth, Fingerprint): vcc, gnd, tx, rx
+- Sensors: PIR(vcc,signal,gnd), MQ2(vcc,gnd,aout,dout), Soil(vcc,gnd,aout)
+- Motor: L298N(in1-4,ena,enb,vcc,gnd), ULN2003(in1-4,vcc,gnd)
+- Basic: LED(anode,cathode), Resistor(terminal1,terminal2), Buzzer(positive,negative)
+
+TEMPLATES: weather-station, smart-home-sensor, robot-car, iot-dashboard, security-alarm
+
+Available components: ${ALL_COMPONENTS}`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -121,13 +177,11 @@ serve(async (req) => {
       throw new Error("No AI API key configured. Set LOVABLE_API_KEY or GEMINI_API_KEY.");
     }
 
-    // Determine which provider to use
     const useLovableGateway = !!LOVABLE_API_KEY;
     
     let response: Response;
 
     if (useLovableGateway) {
-      // --- Lovable AI Gateway (works on Lovable Cloud) ---
       const body: Record<string, unknown> = {
         model: "google/gemini-3-flash-preview",
         messages: [
@@ -149,10 +203,9 @@ serve(async (req) => {
         body: JSON.stringify(body),
       });
     } else {
-      // --- Direct Google Gemini API (works when self-hosted) ---
       const geminiMessages = [
         { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-        { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent ready to help." }] },
+        { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v7 ready to autonomously build circuits." }] },
         ...messages.map((m: { role: string; content: string }) => ({
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: m.content }],
@@ -189,7 +242,6 @@ serve(async (req) => {
         });
       }
 
-      // Transform Gemini response to OpenAI-compatible format
       const geminiData = await geminiResp.json();
       const candidate = geminiData.candidates?.[0];
       const parts = candidate?.content?.parts || [];
@@ -206,20 +258,14 @@ serve(async (req) => {
             tool_calls: toolCalls.map((p: any, i: number) => ({
               id: `call_${i}`,
               type: "function",
-              function: {
-                name: p.functionCall.name,
-                arguments: JSON.stringify(p.functionCall.args || {}),
-              },
+              function: { name: p.functionCall.name, arguments: JSON.stringify(p.functionCall.args || {}) },
             })),
           },
           finish_reason: "tool_calls",
         });
       } else {
         openaiChoices.push({
-          message: {
-            role: "assistant",
-            content: textParts.map((p: any) => p.text).join(""),
-          },
+          message: { role: "assistant", content: textParts.map((p: any) => p.text).join("") },
           finish_reason: "stop",
         });
       }
@@ -248,14 +294,12 @@ serve(async (req) => {
     }
 
     if (useTools) {
-      // Non-streaming: return full JSON for tool-call parsing
       const data = await response.json();
       return new Response(JSON.stringify(data), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Streaming response
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
