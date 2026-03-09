@@ -81,6 +81,7 @@ const GEMINI_TOOLS = [
       { name: "loadTemplate", description: "Load a project template", parameters: { type: "object", properties: { templateId: { type: "string", description: "Template: weather-station, smart-home-sensor, robot-car, iot-dashboard, security-alarm" } }, required: ["templateId"] } },
       { name: "getCircuitState", description: "Get current components and connections", parameters: { type: "object", properties: {} } },
       { name: "clearCircuit", description: "Clear the entire circuit", parameters: { type: "object", properties: {} } },
+      { name: "compileCode", description: "Compile code and check for errors", parameters: { type: "object", properties: { board: { type: "string", description: "uno or esp32" } } } },
     ],
   },
 ];
