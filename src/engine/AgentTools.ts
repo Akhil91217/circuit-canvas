@@ -3,6 +3,8 @@ import { useSimulationStore } from '@/store/simulationStore';
 import { COMPONENT_DEFINITIONS } from '@/data/componentDefinitions';
 import { PROJECT_TEMPLATES } from '@/data/projectTemplates';
 import { NetlistEngine } from '@/engine/NetlistEngine';
+import { installLibrary, removeLibrary, searchLibraries, getInstalledLibraries } from '@/components/circuit/LibraryManager';
+import { installPlugin, removePlugin, searchPlugins, getInstalledPlugins } from '@/components/circuit/PluginManager';
 
 export interface AgentStep {
   id: string;
@@ -164,6 +166,53 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     name: 'createDashboard',
     description: 'Generate dashboard widget configuration for IoT monitoring based on circuit sensors',
     parameters: {},
+  },
+  {
+    name: 'installLibrary',
+    description: 'Install an Arduino library by name (e.g. Adafruit_BME280, FastLED, PubSubClient, DHT, Servo)',
+    parameters: {
+      name: { type: 'string', description: 'Library name to install', required: true },
+    },
+  },
+  {
+    name: 'removeLibrary',
+    description: 'Remove an installed Arduino library',
+    parameters: {
+      name: { type: 'string', description: 'Library name to remove', required: true },
+    },
+  },
+  {
+    name: 'searchLibraries',
+    description: 'Search available Arduino libraries by keyword',
+    parameters: {
+      query: { type: 'string', description: 'Search query', required: true },
+    },
+  },
+  {
+    name: 'listInstalledLibraries',
+    description: 'List all currently installed Arduino libraries',
+    parameters: {},
+  },
+  {
+    name: 'installPlugin',
+    description: 'Install a community plugin component by ID',
+    parameters: {
+      id: { type: 'string', description: 'Plugin ID to install', required: true },
+    },
+  },
+  {
+    name: 'searchPlugins',
+    description: 'Search community plugin components',
+    parameters: {
+      query: { type: 'string', description: 'Search query', required: true },
+    },
+  },
+  {
+    name: 'searchTemplates',
+    description: 'Search project templates by keyword',
+    parameters: {
+      query: { type: 'string', description: 'Search query', required: true },
+    },
   },
 ];
 
@@ -549,6 +598,45 @@ export function executeAgentTool(tool: string, rawArgs: Record<string, unknown>)
       });
       
       return `📊 Dashboard Configuration:\n\nDetected sensors:\n${widgets.join('\n')}\n\n💡 Open the Dashboard panel to see real-time visualizations.\nSensor data will update automatically during simulation.`;
+    }
+
+    case 'installLibrary': {
+      return installLibrary(args.name as string);
+    }
+
+    case 'removeLibrary': {
+      return removeLibrary(args.name as string);
+    }
+
+    case 'searchLibraries': {
+      const results = searchLibraries(args.query as string);
+      if (results.length === 0) return `❌ No libraries found for: ${args.query}`;
+      return `📦 Found ${results.length} libraries:\n${results.map(l => `• ${l.name} v${l.version} — ${l.description}`).join('\n')}`;
+    }
+
+    case 'listInstalledLibraries': {
+      const libs = getInstalledLibraries();
+      if (libs.length === 0) return '📦 No libraries installed yet.';
+      return `📦 Installed libraries (${libs.length}):\n${libs.map(l => `• ${l.name} v${l.version}`).join('\n')}`;
+    }
+
+    case 'installPlugin': {
+      return installPlugin(args.id as string);
+    }
+
+    case 'searchPlugins': {
+      const results = searchPlugins(args.query as string);
+      if (results.length === 0) return `❌ No plugins found for: ${args.query}`;
+      return `🧩 Found ${results.length} plugins:\n${results.map(p => `• ${p.name} v${p.version} — ${p.description}`).join('\n')}`;
+    }
+
+    case 'searchTemplates': {
+      const q = (args.query as string).toLowerCase();
+      const results = PROJECT_TEMPLATES.filter(t => 
+        t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
+      );
+      if (results.length === 0) return `❌ No templates found for: ${args.query}`;
+      return `📋 Found ${results.length} templates:\n${results.map(t => `• ${t.id}: ${t.name} — ${t.description}`).join('\n')}`;
     }
 
     default:

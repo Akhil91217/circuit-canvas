@@ -20,38 +20,31 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 const ALL_COMPONENT_TYPES = Object.keys(COMPONENT_DEFINITIONS).join(', ');
 
-const SYSTEM_PROMPT = `You are CircuitForge AI Agent v9 — an autonomous embedded systems engineering assistant inside a visual circuit simulator.
-You have access to tools that directly control the simulator. When a user asks you to build a circuit, design a project, or fix issues, you MUST use tools to perform the actions.
+const SYSTEM_PROMPT = `You are CircuitForge AI Agent v10 — an autonomous embedded systems engineering assistant with full platform ecosystem access.
+You have access to tools that directly control the simulator, manage libraries, install plugins, and search templates.
 
 WORKFLOW for building circuits:
 1. Plan the circuit architecture (components needed, connections)
-2. Add components using addComponent (they auto-space, or specify x,y)
-3. Connect pins using connectPins (use component type names for fromComponent/toComponent)
-4. Generate Arduino/ESP32 code using generateArduinoCode
-5. Start simulation using runSimulation
-6. If errors occur, use analyzeCircuit and fixNetlistErrors to diagnose and fix
+2. Install required libraries using installLibrary
+3. Add components using addComponent (they auto-space, or specify x,y)
+4. Connect pins using connectPins
+5. Generate Arduino/ESP32 code using generateArduinoCode
+6. Start simulation using runSimulation
+7. If errors occur, use analyzeCircuit and fixNetlistErrors
 
-MULTI-STEP PLANNING: For complex projects, break them into phases:
-- Phase 1: Add all components
-- Phase 2: Wire power and ground
-- Phase 3: Wire signal connections
-- Phase 4: Generate code
-- Phase 5: Test and fix
+PLATFORM ECOSYSTEM:
+- Libraries: Install Arduino libraries (Adafruit_BME280, FastLED, PubSubClient, etc.)
+- Plugins: Install community hardware plugins for extra components
+- Templates: Search and load pre-built project templates
+- Analysis: Run AI circuit analysis for wiring issues and power warnings
+- Dashboard: Create IoT dashboard widgets from detected sensors
 
 IMPORTANT RULES:
-- Always add components BEFORE connecting them
+- Always install required libraries BEFORE generating code that uses them
 - Use correct pin IDs from component definitions
 - For Arduino Uno: d0-d13, a0-a5, 5v, 3v3, gnd1, gnd2, vin
 - For ESP32: gpio0-gpio25, adc0-adc5, 3v3, gnd1, gnd2, vin
-- For I2C devices: connect SDA to SDA, SCL to SCL (GPIO21/22 on ESP32, A4/A5 on Arduino)
-- For SPI devices: connect MOSI, MISO, SCK, CS pins
 - Always connect power (VCC) and ground (GND) for each module
-- Use analyzeCircuit to verify before running simulation
-- If simulation fails, use fixNetlistErrors then retry
-
-TEMPLATES: Use loadTemplate for quick starts: weather-station, smart-home-sensor, robot-car, iot-dashboard, security-alarm
-
-MULTI-FILE PROJECTS: Use generateMultiFileProject for complex code with headers and source files.
 
 Available component types: ${ALL_COMPONENT_TYPES}
 
@@ -82,8 +75,15 @@ const GEMINI_TOOLS = [
       { name: "getCircuitState", description: "Get current components and connections", parameters: { type: "object", properties: {} } },
       { name: "clearCircuit", description: "Clear the entire circuit", parameters: { type: "object", properties: {} } },
       { name: "compileCode", description: "Compile code and check for errors", parameters: { type: "object", properties: { board: { type: "string", description: "uno or esp32" } } } },
-      { name: "aiCircuitAnalysis", description: "Run AI analysis on circuit: detects wiring issues, power problems, missing components, suggests optimizations", parameters: { type: "object", properties: {} } },
-      { name: "createDashboard", description: "Generate dashboard widget configuration based on circuit sensors", parameters: { type: "object", properties: {} } },
+      { name: "aiCircuitAnalysis", description: "Run AI analysis on circuit", parameters: { type: "object", properties: {} } },
+      { name: "createDashboard", description: "Generate dashboard widgets from sensors", parameters: { type: "object", properties: {} } },
+      { name: "installLibrary", description: "Install an Arduino library", parameters: { type: "object", properties: { name: { type: "string", description: "Library name (e.g. Adafruit_BME280, FastLED, PubSubClient)" } }, required: ["name"] } },
+      { name: "removeLibrary", description: "Remove an installed library", parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } },
+      { name: "searchLibraries", description: "Search available Arduino libraries", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+      { name: "listInstalledLibraries", description: "List installed libraries", parameters: { type: "object", properties: {} } },
+      { name: "installPlugin", description: "Install a community plugin component", parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+      { name: "searchPlugins", description: "Search community plugins", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+      { name: "searchTemplates", description: "Search project templates", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
     ],
   },
 ];
@@ -94,7 +94,7 @@ async function callGeminiDirect(messages: Array<{role: string; content: string}>
   const memoryContext = getMemoryContext();
   const geminiMessages = [
     { role: "user", parts: [{ text: SYSTEM_PROMPT + memoryContext }] },
-    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v9, ready to autonomously build circuits, generate code, compile, debug, and analyze circuits." }] },
+    { role: "model", parts: [{ text: "Understood. I am CircuitForge AI Agent v10, ready to build circuits, manage libraries, install plugins, analyze circuits, and access the full platform ecosystem." }] },
     ...messages.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
@@ -367,7 +367,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
             <Sparkles className="w-2 h-2 text-warning absolute -top-0.5 -right-0.5" />
           </div>
           <span className="text-xs font-semibold text-foreground">AI Agent</span>
-          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v9</span>
+          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v10</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -430,8 +430,8 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
               <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-2">
                 <Zap className="w-5 h-5 text-accent" />
               </div>
-              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent v9</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Autonomous circuit builder with AI analysis, 40+ components, sharing, and multi-file projects.</p>
+              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent v10</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Full platform ecosystem: libraries, plugins, templates, AI analysis, and autonomous circuit building.</p>
             </div>
             <div className="space-y-1.5">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Try these</p>

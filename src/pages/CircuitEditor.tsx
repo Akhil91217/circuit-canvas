@@ -10,7 +10,11 @@ import IoTDashboard from '@/components/circuit/IoTDashboard';
 import NetlistPanel from '@/components/circuit/NetlistPanel';
 import ExportPanel from '@/components/circuit/ExportPanel';
 import SharePanel from '@/components/circuit/SharePanel';
-import { Cpu, Zap, Bot, Radio, Activity, Download, BarChart3, Share2 } from 'lucide-react';
+import LibraryManager from '@/components/circuit/LibraryManager';
+import PluginManager from '@/components/circuit/PluginManager';
+import CommunityMarketplace from '@/components/circuit/CommunityMarketplace';
+import TemplateMarketplace from '@/components/circuit/TemplateMarketplace';
+import { Cpu, Zap, Bot, Radio, Activity, Download, BarChart3, Share2, Package, Puzzle, Globe, LayoutTemplate } from 'lucide-react';
 import { useSimulationStore } from '@/store/simulationStore';
 import { useCircuitStore } from '@/store/circuitStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,6 +28,10 @@ const CircuitEditor = () => {
   const [showNetlist, setShowNetlist] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showLibraries, setShowLibraries] = useState(false);
+  const [showPlugins, setShowPlugins] = useState(false);
+  const [showCommunity, setShowCommunity] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   // Auto-load shared project from URL
   useEffect(() => {
@@ -56,7 +64,6 @@ const CircuitEditor = () => {
           if (data.code) useSimulationStore.getState().setCode(data.code);
           toast.success(`Loaded shared project: ${data.project_name}`);
           
-          // Clean URL
           window.history.replaceState({}, '', window.location.pathname);
         } catch {
           // Silently fail
@@ -64,6 +71,19 @@ const CircuitEditor = () => {
       })();
     }
   }, []);
+
+  const panels = [
+    { key: 'libraries', show: showLibraries, set: setShowLibraries, icon: <Package className="w-3 h-3" />, label: 'Libraries' },
+    { key: 'plugins', show: showPlugins, set: setShowPlugins, icon: <Puzzle className="w-3 h-3" />, label: 'Plugins' },
+    { key: 'templates', show: showTemplates, set: setShowTemplates, icon: <LayoutTemplate className="w-3 h-3" />, label: 'Templates' },
+    { key: 'community', show: showCommunity, set: setShowCommunity, icon: <Globe className="w-3 h-3" />, label: 'Community' },
+    { key: 'share', show: showShare, set: setShowShare, icon: <Share2 className="w-3 h-3" />, label: 'Share' },
+    { key: 'export', show: showExport, set: setShowExport, icon: <Download className="w-3 h-3" />, label: 'Export' },
+    { key: 'netlist', show: showNetlist, set: setShowNetlist, icon: <Activity className="w-3 h-3" />, label: 'Netlist' },
+    { key: 'iot', show: showIoT, set: setShowIoT, icon: <Radio className="w-3 h-3" />, label: 'IoT' },
+    { key: 'dashboard', show: showDashboard, set: setShowDashboard, icon: <BarChart3 className="w-3 h-3" />, label: 'Dashboard' },
+    { key: 'agent', show: showAgent, set: setShowAgent, icon: <Bot className="w-3 h-3" />, label: 'Agent' },
+  ];
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
@@ -78,7 +98,7 @@ const CircuitEditor = () => {
           </div>
           <span className="font-semibold text-sm text-foreground tracking-tight">CircuitForge</span>
         </div>
-        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v9.0</span>
+        <span className="text-[10px] font-mono text-accent/60 bg-accent/10 px-1.5 py-0.5 rounded border border-accent/20">v10.0</span>
 
         {runtimeMode === 'avr8js' && (
           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
@@ -98,14 +118,7 @@ const CircuitEditor = () => {
         <div className="flex-1" />
 
         {/* Panel toggles */}
-        {[
-          { key: 'share', show: showShare, set: setShowShare, icon: <Share2 className="w-3 h-3" />, label: 'Share' },
-          { key: 'export', show: showExport, set: setShowExport, icon: <Download className="w-3 h-3" />, label: 'Export' },
-          { key: 'netlist', show: showNetlist, set: setShowNetlist, icon: <Activity className="w-3 h-3" />, label: 'Netlist' },
-          { key: 'iot', show: showIoT, set: setShowIoT, icon: <Radio className="w-3 h-3" />, label: 'IoT' },
-          { key: 'dashboard', show: showDashboard, set: setShowDashboard, icon: <BarChart3 className="w-3 h-3" />, label: 'Dashboard' },
-          { key: 'agent', show: showAgent, set: setShowAgent, icon: <Bot className="w-3 h-3" />, label: 'Agent' },
-        ].map(btn => (
+        {panels.map(btn => (
           <button
             key={btn.key}
             onClick={() => btn.set(!btn.show)}
@@ -118,7 +131,7 @@ const CircuitEditor = () => {
           </button>
         ))}
 
-        <span className="text-[10px] text-muted-foreground ml-2">Phase 9 — AI Analysis & Sharing</span>
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 10 — Platform Ecosystem</span>
       </div>
 
       {/* Toolbar */}
@@ -134,6 +147,10 @@ const CircuitEditor = () => {
         {showShare && <SharePanel onClose={() => setShowShare(false)} />}
         {showIoT && <IoTPanel onClose={() => setShowIoT(false)} />}
         {showDashboard && <IoTDashboard onClose={() => setShowDashboard(false)} />}
+        {showLibraries && <LibraryManager onClose={() => setShowLibraries(false)} />}
+        {showPlugins && <PluginManager onClose={() => setShowPlugins(false)} />}
+        {showCommunity && <CommunityMarketplace onClose={() => setShowCommunity(false)} />}
+        {showTemplates && <TemplateMarketplace onClose={() => setShowTemplates(false)} />}
         {showAgent && <AgentPanel onClose={() => setShowAgent(false)} />}
       </div>
 
