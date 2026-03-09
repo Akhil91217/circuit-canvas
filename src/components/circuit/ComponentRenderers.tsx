@@ -261,7 +261,7 @@ export function OLEDRenderer({ def, properties, isSimulating }: RendererProps) {
       {!text && isSimulating && <Text x={8} y={8} text="SSD1306" fontSize={7} fill="#003366" fontFamily="monospace" />}
       {/* Pin labels */}
       <Text x={6} y={def.height - 15} text="GND VCC SCL SDA" fontSize={4.5} fill="#555" fontFamily="monospace" />
-      <Text x={def.width / 2 - 12} y={def.height - 7} text="OLED 0.96\"" fontSize={5} fill="#444" fontFamily="monospace" />
+      <Text x={def.width / 2 - 12} y={def.height - 7} text={'OLED 0.96"'} fontSize={5} fill="#444" fontFamily="monospace" />
     </Group>
   );
 }
