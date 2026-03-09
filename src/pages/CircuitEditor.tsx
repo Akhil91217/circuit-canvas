@@ -69,7 +69,7 @@ const CircuitEditor = () => {
           </button>
         ))}
 
-        <span className="text-[10px] text-muted-foreground ml-2">Phase 6 — AI Agent & Rendering</span>
+        <span className="text-[10px] text-muted-foreground ml-2">Phase 7 — Autonomous Agent & 40+ Components</span>
       </div>
 
       {/* Toolbar */}
