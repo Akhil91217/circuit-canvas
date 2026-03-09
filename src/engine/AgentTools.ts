@@ -600,6 +600,45 @@ export function executeAgentTool(tool: string, rawArgs: Record<string, unknown>)
       return `📊 Dashboard Configuration:\n\nDetected sensors:\n${widgets.join('\n')}\n\n💡 Open the Dashboard panel to see real-time visualizations.\nSensor data will update automatically during simulation.`;
     }
 
+    case 'installLibrary': {
+      return installLibrary(args.name as string);
+    }
+
+    case 'removeLibrary': {
+      return removeLibrary(args.name as string);
+    }
+
+    case 'searchLibraries': {
+      const results = searchLibraries(args.query as string);
+      if (results.length === 0) return `❌ No libraries found for: ${args.query}`;
+      return `📦 Found ${results.length} libraries:\n${results.map(l => `• ${l.name} v${l.version} — ${l.description}`).join('\n')}`;
+    }
+
+    case 'listInstalledLibraries': {
+      const libs = getInstalledLibraries();
+      if (libs.length === 0) return '📦 No libraries installed yet.';
+      return `📦 Installed libraries (${libs.length}):\n${libs.map(l => `• ${l.name} v${l.version}`).join('\n')}`;
+    }
+
+    case 'installPlugin': {
+      return installPlugin(args.id as string);
+    }
+
+    case 'searchPlugins': {
+      const results = searchPlugins(args.query as string);
+      if (results.length === 0) return `❌ No plugins found for: ${args.query}`;
+      return `🧩 Found ${results.length} plugins:\n${results.map(p => `• ${p.name} v${p.version} — ${p.description}`).join('\n')}`;
+    }
+
+    case 'searchTemplates': {
+      const q = (args.query as string).toLowerCase();
+      const results = PROJECT_TEMPLATES.filter(t => 
+        t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
+      );
+      if (results.length === 0) return `❌ No templates found for: ${args.query}`;
+      return `📋 Found ${results.length} templates:\n${results.map(t => `• ${t.id}: ${t.name} — ${t.description}`).join('\n')}`;
+    }
+
     default:
       return `❌ Unknown tool: ${tool}`;
   }
