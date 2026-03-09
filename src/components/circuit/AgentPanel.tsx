@@ -430,8 +430,8 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
               <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-2">
                 <Zap className="w-5 h-5 text-accent" />
               </div>
-              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent v9</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Autonomous circuit builder with AI analysis, 40+ components, sharing, and multi-file projects.</p>
+              <p className="text-xs text-foreground font-medium">CircuitForge AI Agent v10</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Full platform ecosystem: libraries, plugins, templates, AI analysis, and autonomous circuit building.</p>
             </div>
             <div className="space-y-1.5">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Try these</p>
