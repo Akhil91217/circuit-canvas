@@ -167,6 +167,53 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     description: 'Generate dashboard widget configuration for IoT monitoring based on circuit sensors',
     parameters: {},
   },
+  {
+    name: 'installLibrary',
+    description: 'Install an Arduino library by name (e.g. Adafruit_BME280, FastLED, PubSubClient, DHT, Servo)',
+    parameters: {
+      name: { type: 'string', description: 'Library name to install', required: true },
+    },
+  },
+  {
+    name: 'removeLibrary',
+    description: 'Remove an installed Arduino library',
+    parameters: {
+      name: { type: 'string', description: 'Library name to remove', required: true },
+    },
+  },
+  {
+    name: 'searchLibraries',
+    description: 'Search available Arduino libraries by keyword',
+    parameters: {
+      query: { type: 'string', description: 'Search query', required: true },
+    },
+  },
+  {
+    name: 'listInstalledLibraries',
+    description: 'List all currently installed Arduino libraries',
+    parameters: {},
+  },
+  {
+    name: 'installPlugin',
+    description: 'Install a community plugin component by ID',
+    parameters: {
+      id: { type: 'string', description: 'Plugin ID to install', required: true },
+    },
+  },
+  {
+    name: 'searchPlugins',
+    description: 'Search community plugin components',
+    parameters: {
+      query: { type: 'string', description: 'Search query', required: true },
+    },
+  },
+  {
+    name: 'searchTemplates',
+    description: 'Search project templates by keyword',
+    parameters: {
+      query: { type: 'string', description: 'Search query', required: true },
+    },
+  },
 ];
 
 function findComponentByTypeOrId(typeOrId: string): string | null {
