@@ -375,6 +375,27 @@ export function executeAgentTool(tool: string, rawArgs: Record<string, unknown>)
       return '✅ Circuit cleared';
     }
 
+    case 'compileCode': {
+      const board = (args.board as string) || 'uno';
+      const code = simStore.code;
+      if (!code.trim()) return '❌ No code to compile';
+      
+      const hasSetup = /void\s+setup\s*\(\s*\)/.test(code);
+      const hasLoop = /void\s+loop\s*\(\s*\)/.test(code);
+      if (!hasSetup || !hasLoop) {
+        const missing = [];
+        if (!hasSetup) missing.push('setup()');
+        if (!hasLoop) missing.push('loop()');
+        return `❌ Compile error: Missing required function(s): ${missing.join(', ')}`;
+      }
+      
+      const lineCount = code.split('\n').length;
+      const funcCount = (code.match(/\b(?:void|int|float|bool)\s+\w+\s*\(/g) || []).length;
+      const flash = lineCount * 32 + 2048;
+      const maxFlash = board === 'esp32' ? 1310720 : 32256;
+      return `✅ Compile OK (${board}): ${lineCount} lines, ${funcCount} functions, ${flash} bytes flash (${((flash / maxFlash) * 100).toFixed(0)}%)`;
+    }
+
     default:
       return `❌ Unknown tool: ${tool}`;
   }
