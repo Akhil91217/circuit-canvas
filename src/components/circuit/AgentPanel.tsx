@@ -366,7 +366,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
             <Sparkles className="w-2 h-2 text-warning absolute -top-0.5 -right-0.5" />
           </div>
           <span className="text-xs font-semibold text-foreground">AI Agent</span>
-          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v7</span>
+          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">v9</span>
         </div>
         <div className="flex items-center gap-1">
           <button
